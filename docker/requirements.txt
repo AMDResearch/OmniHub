@@ -1,0 +1,13 @@
+pandas
+sacremoses
+sentencepiece
+transformers[torch]
+jupyter
+datasets
+evaluate
+peft
+trl
+setuptools
+plotille
+requests==2.28.2
+tensorboard

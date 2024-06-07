@@ -1,0 +1,14 @@
+
+version: "3.3"
+
+services:
+  jsantos_pytorch:
+    image: jsantos_pytorch
+    container_name: omniperf-grafana-v1.0
+    build: 
+      context: .
+    ports:
+    - "8888"
+    volumes:
+    - /home/jsantos:/jsantos
+    - /share2/aaji/ml-models/:/share/ml-models
