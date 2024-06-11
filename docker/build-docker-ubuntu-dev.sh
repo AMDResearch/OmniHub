@@ -1,1 +1,1 @@
-docker build -f docker/Dockerfile-ubuntu-dev -t pachyderm:latest .
+docker build -f docker/Dockerfile-ubuntu-dev -t omnihub:latest .
