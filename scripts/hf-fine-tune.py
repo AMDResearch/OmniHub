@@ -17,9 +17,9 @@ from peft import LoraConfig
 from trl import SFTTrainer
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-parser = ArgumentParser(description="Just an example",
+parser = ArgumentParser(description="Fine-tune an LLM model",
                                  formatter_class=ArgumentDefaultsHelpFormatter)
-parser.add_argument("-p", "--path", help="path to llama model")
+parser.add_argument("-p", "--path", help="path to model")
 parser.add_argument("--ddp", action="store_true", help="run with DDP")
 args = vars(parser.parse_args())
 
@@ -80,7 +80,7 @@ peft_params = LoraConfig(
 #%%
 
 training_params = TrainingArguments(
-    output_dir="./results",
+    output_dir=f'./fine-tuned-models/{new_model}',
     num_train_epochs=4,
     per_device_train_batch_size=1,
     gradient_accumulation_steps=1,

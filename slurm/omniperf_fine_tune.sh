@@ -14,7 +14,7 @@ bash docker/build-docker-ubuntu-dev.sh
 
 # run docker container
 docker run -itd --rm --name omnihub \
-  -v $SHARED/aaji:/share -v $HOME:/host-home -w /host-home \
+  -v $SHARED/projs/omnihub:/share -v $HOME:/host-home -w /host-home \
   --cap-add=SYS_PTRACE --security-opt seccomp=unconfined \
   --device=/dev/kfd --device=/dev/dri \
   --ipc=host --shm-size 8G \
@@ -22,7 +22,11 @@ docker run -itd --rm --name omnihub \
 
 # exec inference workload with omniperf
 rel_path=`realpath -s --relative-to=$HOME $PWD`
-docker exec omnihub omniperf profile -n Meta_Llama_2_13b -- ${rel_path}/llama-hf/fine-tune.py -p /share/ml-models/meta-llama/Llama-2-13b-chat-hf/
+docker exec omnihub omniperf profile -n Meta_Llama_2_13b -- ${rel_path}/scripts/hf-fine-tune.py -p /share/ml-models/Meta-Llama-2-13B-Chat-safetensors/
+
+# fix permissions of omniperf stats and fine-tuned model dir
+docker exec omnihub fix-host-owner workloads
+docker exec omnihub fix-host-owner fine-tuned-models
 
 # stop/remove container
 docker container rm omnihub -f

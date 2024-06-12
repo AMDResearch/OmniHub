@@ -4,11 +4,12 @@ import transformers
 import torch
 import os
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from accelerate import PartialState
 
-
-parser = ArgumentParser(description="run a quick inference to llama model",
+parser = ArgumentParser(description="Run inference on an LLM model",
                                  formatter_class=ArgumentDefaultsHelpFormatter)
-parser.add_argument("-p", "--path", help="path to llama model")
+parser.add_argument("-p", "--path", help="path to model")
+parser.add_argument("--ddp", action="store_true", help="run with DDP")
 args = vars(parser.parse_args())
 
 if os.path.exists(args["path"]):
@@ -25,6 +26,7 @@ pipeline = transformers.pipeline(
         "quantization_config": {"load_in_4bit": True},
         "low_cpu_mem_usage": True,
     },
+    device_map= {"": PartialState().process_index} if args["ddp"] else "auto",
 )
 
 

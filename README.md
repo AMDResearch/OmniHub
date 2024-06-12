@@ -20,7 +20,7 @@ We have currently tested the scripts in this repository to work with the followi
 **Tools**
 - omniperf
 
-## Use case: Omniperf and Llama3
+## Use case: Omniperf and Llama3 on Radha
 
 Below are the steps you can follow to run Llama3 (8B Instruct) model on radha and use omniperf to collect comprehensive performance metrics. 
 If the run was successful, you will find the omniperf output stats at `~/workloads`, with which you may do further analysis (e.g., roofline analysis).
@@ -46,7 +46,7 @@ bash docker/build-docker-ubuntu-dev.sh
 #### Run docker container
 ```
 docker run -itd --rm --name omnihub \
-  -v $SHARED/aaji:/share -v $HOME:/host-home -w /host-home \
+  -v $SHARED/projs/omnihub:/share -v $HOME:/host-home -w /host-home \
   --cap-add=SYS_PTRACE --security-opt seccomp=unconfined \
   --device=/dev/kfd --device=/dev/dri \
   --ipc=host --shm-size 8G \
@@ -56,10 +56,14 @@ docker run -itd --rm --name omnihub \
 #### Exec inference task with omniperf
 ```
 rel_path=`realpath -s --relative-to=$HOME $PWD`
-docker exec omnihub omniperf profile -n Meta_Llama_3_8b -- ${rel_path}/llama-hf/inference.py -p /share/ml-models/Meta-Llama-3-8B-Instruct-hf
+docker exec omnihub omniperf profile -n Meta_Llama_3_8b -- \
+  ${rel_path}/scripts/hf-inference.py -p /share/ml-models/Meta-Llama-3-8B-Instruct-safetensors
 ```
 
 #### Stop/remove container
 ```
 docker container rm omnihub -f
 ```
+
+### Models
+See [here](docs/models.md) for more details on the available ML models on radha.
