@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=omniperf_llama 
+#SBATCH --job-name=omnitrace_llama
 #SBATCH --gpus-per-node=4
 #SBATCH --nodes=1
 #SBATCH -o logs/job-%j.out
@@ -20,12 +20,15 @@ docker run -itd --rm --name omnihub \
   --ipc=host --shm-size 8G \
   omnihub:latest
 
-# exec inference workload with omniperf
+# exec inference workload with omnitrace
 rel_path=`realpath -s --relative-to=$HOME $PWD`
-docker exec omnihub omniperf profile -n Meta_Llama_3_8b -- ${rel_path}/scripts/hf-inference.py -p /share/ml-models/Meta-Llama-3-8B-Instruct-safetensors
+docker exec omnihub ${rel_path}/scripts/hf-fine-tune.py --omnitrace -p /share/ml-models/Meta-Llama-2-13B-Chat-safetensors/
 
-# fix permissions of omniperf stats dir
-docker exec omnihub fix-host-owner workloads
+# copy perfetto trace, which is unexpectedly stored in the root directory
+docker exec omnihub bash -c 'cp -r /omnitrace* /host-home/'
+# fix permissions of omnitrace output and fine-tuned model dir
+docker exec omnihub fix-host-owner omnitrace-hf-fine-tune-output
+docker exec omnihub fix-host-owner fine-tuned-models
 
 # stop/remove container
 docker container rm omnihub -f

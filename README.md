@@ -19,17 +19,28 @@ We have currently tested the scripts in this repository to work with the followi
 
 **Tools**
 - omniperf
+- omnitrace
 
-## Use case: Omniperf and Llama3 on Radha
+## Use case: Llama3 on Radha
 
-Below are the steps you can follow to run Llama3 (8B Instruct) model on radha and use omniperf to collect comprehensive performance metrics. 
-If the run was successful, you will find the omniperf output stats at `~/workloads`, with which you may do further analysis (e.g., roofline analysis).
+Below are the steps you can follow to run Llama3 (8B Instruct) model on radha and use different tools to collect comprehensive performance metrics. 
 We assume that this repo is available in the user's `HOME` directory hierarchy.
 
-### Slurm batch script
+### Slurm batch script for Omniperf
 ```
 sbatch slurm/omniperf_inference.sh
 ```
+If the run was successful, you will find the omniperf output stats at
+`~/workloads`, with which you may do further analysis (e.g., roofline
+analysis).
+
+### Slurm batch script for Omnitrace
+```
+sbatch slurm/omnitrace_inference.sh
+```
+If the run was successful, you will find the omnitrace output stats under
+`~/omnitrace-hf-inference-output`, with which you may use
+[Perfetto](https://ui.perfetto.dev/) for interactive exploration.
 
 ### Manual
 

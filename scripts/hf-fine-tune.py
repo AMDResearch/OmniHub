@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import contextlib
+import importlib.util
 import os
 import sys
 import torch
@@ -18,9 +20,10 @@ from trl import SFTTrainer
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 parser = ArgumentParser(description="Fine-tune an LLM model",
-                                 formatter_class=ArgumentDefaultsHelpFormatter)
+                        formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument("-p", "--path", help="path to model")
 parser.add_argument("--ddp", action="store_true", help="run with DDP")
+parser.add_argument("--omnitrace", action="store_true", help="enable omnitrace")
 args = vars(parser.parse_args())
 
 if os.path.exists(args["path"]):
@@ -28,6 +31,22 @@ if os.path.exists(args["path"]):
 else:
     print("path does not exist")
     sys.exit(1)
+
+# The relevant section of the code to be analyzed is wrapped around a context;
+# by default it won't do anything, but it can change to enable profiling.
+context = contextlib.nullcontext()
+
+if args["omnitrace"]:
+    # Attempt to add the omnitrace python module, which is installed in
+    # /opt/omnitrace in the Docker image. To run outside of the Docker with
+    # omnitrace installed in a different path, set PYTHONPATH accordingly.
+    sys.path.insert(0, "/opt/omnitrace/lib/python/site-packages/")
+    omnitrace_spec = importlib.util.find_spec("omnitrace")
+    if omnitrace_spec is None:
+        print("unable to find omnitrace module")
+        sys.exit(1)
+    from omnitrace import profile
+    context = profile()
 
 # %%
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -112,5 +131,5 @@ trainer = SFTTrainer(
     packing=False,
 )
 
-
-trainer.train()
+with context:
+    trainer.train()
