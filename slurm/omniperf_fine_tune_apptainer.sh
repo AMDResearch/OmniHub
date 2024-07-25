@@ -21,7 +21,10 @@ export NCCL_IB_DISABLE=0
 export NCCL_P2P_DISABLE=0
 export NCCL_SOCKET_IFNAME=eth0
 
-srun apptainer run --rocm $WORK/omnihub.sif -c "cd; torchrun \
+module load rocm/6.0.2
+
+LIB_PATH=/opt/rocm-6.0.2/lib:/opt/ohpc/pub/mpi/ucx-ohpc/1.14.0/lib:/opt/ohpc/pub/mpi/openmpi4-gnu12/4.1.5/lib:/opt/ohpc/pub/compiler/gcc/12.2.0/lib64:/opt/
+srun apptainer run --rocm $WORK/omnihub.sif -c "cd $WORK/omnihub; LD_LIBRARY_PATH=$LIB_PATH slurm/run_omniperf_apptainer.bash /apptainer/conda/bin/torchrun \
     --nnodes=$SLURM_JOB_NUM_NODES \
     --nproc_per_node=4 \
     --master_addr=$head_host \

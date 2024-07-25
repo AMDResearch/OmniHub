@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: rocm/dev-ubuntu-22.04:6.0-complete
+From: rocm/dev-ubuntu-22.04:6.0.2-complete
 Stage: spython-base
 
 %files
