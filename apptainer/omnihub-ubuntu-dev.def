@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: rocm/dev-ubuntu-22.04:6.0.2-complete
+From: rocm/dev-ubuntu-22.04:6.0-complete
 Stage: spython-base
 
 %files
@@ -39,6 +39,8 @@ git \
 vim \
 wget \
 locales \
+libopenmpi-dev \
+mpich \
 glibc-source && \
 rm -rf /var/cache/apt/archives /var/lib/apt/lists && \
 locale-gen en_US.UTF-8
@@ -53,6 +55,7 @@ rm -f /tmp/miniconda.sh
 conda update -y conda && \
 conda init && \
 conda install -c conda-forge -y python=3.9
+
 
 pip install torch torchvision torchaudio --index-url $PYTORCH_URL
 
@@ -74,8 +77,8 @@ pip install -e . && \
 cd && \
 rm -rf /tmp/llama-recipes
 
-pip install -r /tmp/requirements.txt && \
-rm -f /tmp/requirements.txt
+conda install mpi4py
+pip install pandas sacremoses sentencepiece transformers[torch] jupyter datasets evaluate peft trl setuptools plotille requests==2.28.2 tensorboard
 
 wget --quiet $OMNIPERF_TARBALL -O /tmp/omniperf.tar.gz && \
 tar xfz /tmp/omniperf.tar.gz -C /tmp && \

@@ -34,7 +34,13 @@ import datetime
 # NCCL_DEBUG=INFO NCCL_ENABLE_DMABUF_SUPPORT=0 NCCL_IB_DISABLE=0 NCCL_P2P_DISABLE=0 torchrun --nnodes=2 --nproc_per_node=4 --rdzv_id=456 --rdzv_backend=c10d --rdzv_endpoint=localhost:29400 /host-home/omnihub/scripts/hf-fine-tune-ddp.py --ddp -p /share/ml-models/Meta-Llama-2-7B-Chat-safetensors
 
 def setup():
-    dist.init_process_group(backend="nccl", timeout=datetime.timedelta(minutes=5))
+    dist.init_process_group(
+        backend="nccl",
+        #init_method="tcp://{}:{}".format(args.master_addr, args.master_port),
+        init_method='env://',
+        rank=rank,
+        world_size=world_size,
+    )
     device = torch.device(int(os.environ["LOCAL_RANK"]))    
     print('using device:', device)
 
@@ -198,7 +204,26 @@ if __name__ == "__main__":
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-p", "--path", help="path to model")
     parser.add_argument("--ddp", action="store_true", help="run with DDP")
-    parser.add_argument("--local-rank",  help="local-rank")
+    # parser.add_argument("--local-rank",  help="local-rank")
+    parser.add_argument("--master_addr", type=str, required=True)
+    parser.add_argument("--master_port", type=str, required=True)
     args = vars(parser.parse_args())
+    print(args)
+    num_gpus_per_node = torch.cuda.device_count()
+    print ("num_gpus_per_node = " + str(num_gpus_per_node), flush=True)
+
+    from mpi4py import MPI
+    import os
+    comm = MPI.COMM_WORLD
+    world_size = comm.Get_size()
+    global_rank = rank = comm.Get_rank()
+    local_rank = int(rank) % int(num_gpus_per_node) # local_rank and device are 0 when using 1 GPU per task
+    backend = None
+    os.environ['WORLD_SIZE'] = str(world_size)
+    os.environ['RANK'] = str(global_rank)
+    os.environ['LOCAL_RANK'] = str(local_rank)
+    os.environ['MASTER_ADDR'] = str(args["master_addr"])
+    os.environ['MASTER_PORT'] = str(args["master_port"])
+    os.environ['NCCL_SOCKET_IFNAME'] = 'eth0'
     print(args)
     main(args)
