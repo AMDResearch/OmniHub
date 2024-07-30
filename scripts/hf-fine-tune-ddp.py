@@ -33,16 +33,16 @@ import datetime
 # NCCL_DEBUG=INFO NCCL_ENABLE_DMABUF_SUPPORT=0 NCCL_IB_DISABLE=0 NCCL_P2P_DISABLE=0 torchrun --nnodes=2 --nproc_per_node=4 --rdzv_id=456 --rdzv_backend=c10d --rdzv_endpoint=radha1:29400 /host-home/omnihub/scripts/hf-fine-tune-ddp.py --ddp -p /share/ml-models/Meta-Llama-2-7B-Chat-safetensors
 # NCCL_DEBUG=INFO NCCL_ENABLE_DMABUF_SUPPORT=0 NCCL_IB_DISABLE=0 NCCL_P2P_DISABLE=0 torchrun --nnodes=2 --nproc_per_node=4 --rdzv_id=456 --rdzv_backend=c10d --rdzv_endpoint=localhost:29400 /host-home/omnihub/scripts/hf-fine-tune-ddp.py --ddp -p /share/ml-models/Meta-Llama-2-7B-Chat-safetensors
 
-def setup():
+def setup(args):
     dist.init_process_group(
         backend="nccl",
-        #init_method="tcp://{}:{}".format(args.master_addr, args.master_port),
-        init_method='env://',
-        rank=rank,
-        world_size=world_size,
+        init_method="tcp://{}:{}".format(args["master_addr"], args["master_port"]),
+        # init_method='env://',
+        rank=int(args["local_rank"]),
+        world_size=int(args["world_size"]),
     )
-    device = torch.device(int(os.environ["LOCAL_RANK"]))    
-    print('using device:', device)
+    torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))    
+    print('using device:',torch.cuda.current_device())
 
 def find_all_linear_names(model):
     cls = bnb.nn.Linear4bit
@@ -90,7 +90,7 @@ def main( args):
         sys.exit(1)
 
     if args["ddp"]:
-        setup() 
+        setup(args) 
     # %%
 
     # New instruction dataset
@@ -115,19 +115,21 @@ def main( args):
     )
 
     # %%
+    print("making model")
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         torch_dtype=torch.bfloat16,
         quantization_config=quant_config,
         device_map= {"": int(os.environ["LOCAL_RANK"])} if args["ddp"] else "auto",
     )
+    
     model.config.use_cache = False
     model.config.pretraining_tp = 1
 
 
     model.gradient_checkpointing_enable()
     model = prepare_model_for_kbit_training(model)
-
+    
 
     #%%
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
@@ -146,13 +148,16 @@ def main( args):
     )
     # model.gradient_checkpointing_enable()
     model = get_peft_model(model, peft_params)
+    print("ddp local rank is: ",os.environ['LOCAL_RANK'])
+    model = DDP(model, device_ids=[int(os.environ['LOCAL_RANK'])], find_unused_parameters=True)
+
     print_trainable_parameters(model)
     #%%
 
     training_params = TrainingArguments(
         output_dir=f'./fine-tuned-models/{new_model}',
         num_train_epochs=4,
-        per_device_train_batch_size=4,
+        per_device_train_batch_size=2,
         gradient_accumulation_steps=1,
         # gradient_checkpointing =True,
         ddp_find_unused_parameters=False,
@@ -175,7 +180,7 @@ def main( args):
     # %%
 
     trainer = SFTTrainer(
-        model=model,
+        model=model.module,
         train_dataset=dataset,
         peft_config=peft_params,
         dataset_text_field="text",
@@ -194,9 +199,10 @@ def main( args):
 
     # Run text generation pipeline with our next model
     prompt = "What is a large language model?"
-    pipe = pipeline(task="text-generation", model=model, tokenizer=tokenizer, max_length=200)
+    pipe = pipeline(task="text-generation", model=model.module, tokenizer=tokenizer, max_length=200)
     result = pipe(f"<s>[INST] {prompt} [/INST]")
     print(result[0]['generated_text'])
+    dist.destroy_process_group()
 
 if __name__ == "__main__":
     print("herere")
@@ -204,7 +210,8 @@ if __name__ == "__main__":
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-p", "--path", help="path to model")
     parser.add_argument("--ddp", action="store_true", help="run with DDP")
-    # parser.add_argument("--local-rank",  help="local-rank")
+    parser.add_argument("--local_rank",  help="local_rank")
+    parser.add_argument("--world_size",  help="world_size")
     parser.add_argument("--master_addr", type=str, required=True)
     parser.add_argument("--master_port", type=str, required=True)
     args = vars(parser.parse_args())
@@ -212,18 +219,13 @@ if __name__ == "__main__":
     num_gpus_per_node = torch.cuda.device_count()
     print ("num_gpus_per_node = " + str(num_gpus_per_node), flush=True)
 
-    from mpi4py import MPI
-    import os
-    comm = MPI.COMM_WORLD
-    world_size = comm.Get_size()
-    global_rank = rank = comm.Get_rank()
-    local_rank = int(rank) % int(num_gpus_per_node) # local_rank and device are 0 when using 1 GPU per task
-    backend = None
-    os.environ['WORLD_SIZE'] = str(world_size)
-    os.environ['RANK'] = str(global_rank)
+    local_rank = int(args["local_rank"]) % int(num_gpus_per_node) 
+    os.environ['WORLD_SIZE'] = str(args["world_size"])
     os.environ['LOCAL_RANK'] = str(local_rank)
     os.environ['MASTER_ADDR'] = str(args["master_addr"])
     os.environ['MASTER_PORT'] = str(args["master_port"])
     os.environ['NCCL_SOCKET_IFNAME'] = 'eth0'
     print(args)
+    print("world:",args["world_size"])
+    print("global_rank", args["local_rank"])
     main(args)
