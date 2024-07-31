@@ -6,7 +6,11 @@
 #SBATCH -t 08:00:00
 #SBATCH -p mi2104x
 
-omnihub_dir=$HOME/src/omnihub
+slurm_file=$(scontrol show job $SLURM_JOBID | awk -F= '/Command=/{print $2}')
+slurm_dir="$(dirname "$slurm_file")"
+
+# Find omnihub directory based on the path of the slurm job we are launching.
+omnihub_dir=$(builtin cd $slurm_dir/..; pwd)
 shared_dir=/work1/amd/omnihub
 results_dir=$WORK/results/omnihub/$SLURM_JOB_ID
 model_dir=$shared_dir/ml-models/Meta-Llama-2-7B-Chat-safetensors
@@ -39,13 +43,14 @@ LIB_PATH=/opt/rocm-6.0.0/lib:/opt/ohpc/pub/mpi/ucx-ohpc/1.14.0/lib:/opt/ohpc/pub
 # container then executes omniperf to profile each process separately.
 srun \
     apptainer run --rocm \
-        $shared_dir/apptainer/omnihub-mpi.sif -c "cd $results_dir; \
+        $shared_dir/apptainer/omnihub-mpi.sif -c " \
         LD_LIBRARY_PATH=$LIB_PATH $omnihub_dir/slurm/run_omniperf_apptainer.bash \
         /apptainer/conda/bin/python $omnihub_dir/scripts/hf-fine-tune-ddp-mpi.py \
             --master_addr=$head_host \
             --master_port=$head_port \
             --local_rank=\$SLURM_PROCID \
             --world_size=$SLURM_NTASKS \
+            --output=$results_dir \
             --ddp \
             -p $model_dir \
             > $results_dir/srun-\$SLURM_PROCID.out \

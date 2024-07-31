@@ -24,6 +24,7 @@ parser = ArgumentParser(description="Fine-tune an LLM model",
 parser.add_argument("-p", "--path", help="path to model")
 parser.add_argument("--ddp", action="store_true", help="run with DDP")
 parser.add_argument("--omnitrace", action="store_true", help="enable omnitrace")
+parser.add_argument("--output", default=".", help="path to store output")
 args = vars(parser.parse_args())
 
 if os.path.exists(args["path"]):
@@ -99,7 +100,7 @@ peft_params = LoraConfig(
 #%%
 
 training_params = TrainingArguments(
-    output_dir=f'./fine-tuned-models/{new_model}',
+    output_dir=f'{args["output"]}/fine-tuned-models/{new_model}',
     num_train_epochs=4,
     per_device_train_batch_size=1,
     gradient_accumulation_steps=1,

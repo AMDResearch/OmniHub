@@ -155,11 +155,11 @@ def main( args):
     #%%
 
     training_params = TrainingArguments(
-        output_dir=f'./fine-tuned-models/{new_model}',
+        output_dir=f'{args["output"]}/fine-tuned-models/{new_model}',
         num_train_epochs=4,
         per_device_train_batch_size=2,
         gradient_accumulation_steps=1,
-        # gradient_checkpointing =True,
+        # gradient_checkpointing=True,
         ddp_find_unused_parameters=False,
         optim="paged_adamw_32bit",
         save_steps=25,
@@ -210,6 +210,7 @@ if __name__ == "__main__":
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-p", "--path", help="path to model")
     parser.add_argument("--ddp", action="store_true", help="run with DDP")
+    parser.add_argument("--output", default=".", help="path to store output")
     parser.add_argument("--local_rank",  help="local_rank")
     parser.add_argument("--world_size",  help="world_size")
     parser.add_argument("--master_addr", type=str, required=True)

@@ -6,7 +6,11 @@
 #SBATCH -t 01:00:00
 #SBATCH -p mi2104x
 
-omnihub_dir=$HOME/src/omnihub
+slurm_file=$(scontrol show job $SLURM_JOBID | awk -F= '/Command=/{print $2}')
+slurm_dir="$(dirname "$slurm_file")"
+
+# Find omnihub directory based on the path of the slurm job we are launching.
+omnihub_dir=$(builtin cd $slurm_dir/..; pwd)
 shared_dir=/work1/amd/omnihub
 results_dir=$WORK/results/omnihub/$SLURM_JOB_ID
 model_dir=$shared_dir/ml-models/Meta-Llama-2-7B-Chat-safetensors
@@ -35,7 +39,7 @@ export NCCL_P2P_DISABLE=0
 # container then executes a single python process.
 srun \
     apptainer run --rocm \
-        $shared_dir/apptainer/omnihub-mpi.sif -c "cd $results_dir; \
+        $shared_dir/apptainer/omnihub-mpi.sif -c " \
         python $omnihub_dir/scripts/hf-fine-tune-ddp-mpi.py \
             --master_addr=$head_host \
             --master_port=$head_port \
@@ -43,5 +47,6 @@ srun \
             --world_size=$SLURM_NTASKS \
             --ddp \
             -p $model_dir \
+            --output=$results_dir \
             > $results_dir/srun-\$SLURM_PROCID.out \
             2> $results_dir/srun-\$SLURM_PROCID.err"

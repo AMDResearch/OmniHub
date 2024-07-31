@@ -119,7 +119,7 @@ def main( args):
     print_trainable_parameters(model)
 
     training_params = TrainingArguments(
-        output_dir=f'./fine-tuned-models/{new_model}',
+        output_dir=f'{args["output"]}/fine-tuned-models/{new_model}',
         num_train_epochs=15,
         per_device_train_batch_size=4,
         gradient_accumulation_steps=1,
@@ -167,5 +167,6 @@ if __name__ == "__main__":
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-p", "--path", help="path to model")
     parser.add_argument("--ddp", action="store_true", help="run with DDP")
+    parser.add_argument("--output", default=".", help="path to store output")
     args = vars(parser.parse_args())
     main(args)
