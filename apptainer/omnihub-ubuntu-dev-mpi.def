@@ -34,6 +34,9 @@ PYTHONPATH="$CONDA_DIR/lib/python3.9/site-packages:$PYTHONPATH"
 
 apt update && \
 apt install -y \
+libibverbs1 \
+ibverbs-utils \
+ibverbs-providers \
 cmake \
 git \
 vim \
