@@ -1,40 +1,28 @@
-#!/usr/bin/env python3
 import os
 import sys
+
 import torch
-import torch.distributed as dist
-import torch.multiprocessing as mp
+import bitsandbytes as bnb
+
+from torch.nn.parallel import DistributedDataParallel
 
 from datasets import load_dataset
+
+from peft import (
+    LoraConfig,
+    get_peft_model,
+    prepare_model_for_kbit_training,
+)
+
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
     TrainingArguments,
     pipeline,
-    logging,
-    Trainer,
 )
-from accelerate import PartialState
-from accelerate import Accelerator, DDPCommunicationHookType, DistributedDataParallelKwargs
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.distributed.algorithms.ddp_comm_hooks import default_hooks
 
-from peft import LoraConfig, get_peft_model,prepare_model_for_kbit_training,TaskType
 from trl import SFTTrainer
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from datetime import timedelta
-import bitsandbytes as bnb
-import datetime
-
-import time
-import json
-
-def setup():
-    dist.init_process_group(backend="nccl", timeout=datetime.timedelta(minutes=5))
-    device = torch.device(int(os.environ["LOCAL_RANK"]))    
-    print('using device:', device)
 
 def find_all_linear_names(model):
     cls = bnb.nn.Linear4bit
@@ -43,8 +31,8 @@ def find_all_linear_names(model):
         if isinstance(module, cls):
             names = name.split('.')
             lora_module_names.add(names[0] if len(names) == 1 else names[-1])
-
     return list(lora_module_names)
+
 
 def print_trainable_parameters(model):
   """
@@ -62,26 +50,27 @@ def print_trainable_parameters(model):
 
 def formatting_prompts_func(example):
     print("type is: ", type(example.keys))
- 
-def main( args):
-    
-    if os.path.exists(args["path"]):
-        model_name = args["path"]
-    else:
-        print("path does not exist")
+
+def setup_finetune(args, manual_runner=False):
+    if not os.path.isdir(args.model_dir):
+        print("Failed to find model path")
         sys.exit(1)
+
+    if not os.path.isdir(args.output_dir):
+        print("Failed to find output path")
+        sys.exit(1)
+
+    model_path = args.model_dir
 
     # New instruction dataset
     guanaco_dataset = "mlabonne/guanaco-llama2-1k"
 
-    # Fine-tuned model
-    new_model = os.path.split(os.path.dirname(args["path"]))[-1]+"-guanaco"
-    print("new model will be named: ", new_model)
+    orig_model_name = os.path.split(os.path.dirname(args.model_dir))[-1]
+    tuned_model_name = f"{orig_model_name}-guanaco"
+    print(f"Fine-tuned model: {tuned_model_name}")
 
-    dataset = load_dataset(guanaco_dataset, split="train")
-    dataset = dataset.train_test_split(test_size=0.1)["test"]
-
-    # compute_dtype = getattr(torch, "bfloat16")
+    train_dataset = load_dataset(guanaco_dataset, split="train")
+    train_dataset = train_dataset.train_test_split(test_size=0.1)["test"]
 
     quant_config = BitsAndBytesConfig(
         load_in_4bit=True,
@@ -91,22 +80,23 @@ def main( args):
     )
 
     model = AutoModelForCausalLM.from_pretrained(
-        model_name,
+        model_path,
         torch_dtype=torch.bfloat16,
         quantization_config=quant_config,
-        device_map= {"": int(os.environ["LOCAL_RANK"])} if args["ddp"] else "auto",
+        device_map={"": int(os.environ["LOCAL_RANK"])} if args.ddp else "auto",
     )
+
     model.config.use_cache = False
     model.config.pretraining_tp = 1
 
     model.gradient_checkpointing_enable()
     model = prepare_model_for_kbit_training(model)
 
-    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
 
-    peft_params = LoraConfig(
+    peft_config = LoraConfig(
         lora_alpha=16,
         lora_dropout=0.1,
         target_modules=find_all_linear_names(model),
@@ -114,16 +104,19 @@ def main( args):
         bias="none",
         task_type="CAUSAL_LM",
     )
-    # model.gradient_checkpointing_enable()
-    model = get_peft_model(model, peft_params)
+
+    model = get_peft_model(model, peft_config)
+
+    if args.manual_runner:
+        model = DistributedDataParallel(model, device_ids=[int(os.environ['LOCAL_RANK'])], find_unused_parameters=True)
+
     print_trainable_parameters(model)
 
-    training_params = TrainingArguments(
-        output_dir=f'{args["output"]}/fine-tuned-models/{new_model}',
-        num_train_epochs=15,
-        per_device_train_batch_size=4,
+    train_args = TrainingArguments(
+        output_dir=f'{args.output_dir}/fine-tuned-models/{tuned_model_name}',
+        num_train_epochs=4,
+        per_device_train_batch_size=2,
         gradient_accumulation_steps=1,
-        # gradient_checkpointing=True,
         ddp_find_unused_parameters=False,
         optim="paged_adamw_32bit",
         save_steps=25,
@@ -137,36 +130,32 @@ def main( args):
         warmup_ratio=0.03,
         group_by_length=True,
         lr_scheduler_type="constant",
-        # remove_unused_columns=False,
         report_to=None
     )
 
+    return model, train_dataset, peft_config, tokenizer, train_args
+
+def run_finetune(model, train_dataset, peft_config, tokenizer, train_args):
+    if isinstance(model, DistributedDataParallel):
+        model = model.module
+
     trainer = SFTTrainer(
         model=model,
-        train_dataset=dataset,
-        peft_config=peft_params,
+        train_dataset=train_dataset,
+        peft_config=peft_config,
         dataset_text_field="text",
         max_seq_length=None,
         tokenizer=tokenizer,
-        args=training_params,
+        args=train_args,
         packing=False,
     )
-
     trainer.train()
 
-    # logging.set_verbosity(logging.CRITICAL)
+def run_inference(model, tokenizer):
+    if isinstance(model, DistributedDataParallel):
+        model = model.module
 
-    # Run text generation pipeline with our next model
     prompt = "What is a large language model?"
     pipe = pipeline(task="text-generation", model=model, tokenizer=tokenizer, max_length=200)
     result = pipe(f"<s>[INST] {prompt} [/INST]")
     print(result[0]['generated_text'])
-
-if __name__ == "__main__":
-    parser = ArgumentParser(description="Fine-tune an LLM model",
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-p", "--path", help="path to model")
-    parser.add_argument("--ddp", action="store_true", help="run with DDP")
-    parser.add_argument("--output", default=".", help="path to store output")
-    args = vars(parser.parse_args())
-    main(args)

@@ -48,5 +48,5 @@ srun \
             --node-rank=\$SLURM_PROCID \
             --log-dir $results_dir \
             --redirect 3 \
-            $omnihub_dir/scripts/hf-fine-tune-ddp-torchrun.py \
-            --ddp -p $model_dir --output=$results_dir"
+            $omnihub_dir/scripts/hf-fine-tune-dist.py \
+            --model-dir=$model_dir --output-dir=$results_dir --ddp"

@@ -16,12 +16,13 @@ We have currently tested the scripts in this repository to work with the followi
 
 **Systems**
 - Radha (single-node, multi-GPU)
+- HPC Fund (single-node, multi-GPU, Apptainer)
 
 **Tools**
 - omniperf
 - omnitrace
 
-## Use case: Llama3 on Radha
+## Use case: Single-node Llama3 on Radha
 
 Below are the steps you can follow to run Llama3 (8B Instruct) model on radha and use different tools to collect comprehensive performance metrics. 
 We assume that this repo is available in the user's `HOME` directory hierarchy.
@@ -78,3 +79,16 @@ docker container rm omnihub -f
 
 ### Models
 See [here](docs/models.md) for more details on the available ML models on radha.
+
+
+## Use case: Multi-node Llama2 on HPC Fund
+
+Below are the steps you can follow to run Llama2 (7B Chat) model on the
+HPC Fund cluster without any profiling.
+
+### Slurm batch script using Apptainer
+```
+sbatch slurm/fine_tune_apptainer_manual.sh
+```
+If the run was successful, you will find the execution logs at
+`$WORK/results/omnihub/$SLURM_JOB_ID`.

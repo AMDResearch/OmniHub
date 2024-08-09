@@ -3,7 +3,7 @@
 #SBATCH -o %j-slurm.out
 #SBATCH -N 2
 #SBATCH --tasks-per-node=4
-#SBATCH -t 08:00:00
+#SBATCH -t 01:00:00
 #SBATCH -p mi2104x
 
 slurm_file=$(scontrol show job $SLURM_JOBID | awk -F= '/Command=/{print $2}')
@@ -35,23 +35,19 @@ export NCCL_ENABLE_DMABUF_SUPPORT=0
 export NCCL_IB_DISABLE=0
 export NCCL_P2P_DISABLE=0
 
-module load rocm/6.0.2
-
-LIB_PATH=/opt/rocm-6.0.0/lib:/opt/ohpc/pub/mpi/ucx-ohpc/1.14.0/lib:/opt/ohpc/pub/mpi/openmpi4-gnu12/4.1.5/lib:/opt/ohpc/pub/compiler/gcc/12.2.0/lib64:/opt/
-
 # srun to launch one apptainer task per GPU in each node; each apptainer
-# container then executes omniperf to profile each process separately.
+# container then executes a single python process.
 srun \
     apptainer run --rocm \
         $shared_dir/apptainer/omnihub-mpi.sif -c " \
-        LD_LIBRARY_PATH=$LIB_PATH $omnihub_dir/slurm/run_omniperf_apptainer.bash \
-        /apptainer/conda/bin/python $omnihub_dir/scripts/hf-fine-tune-ddp-mpi.py \
-            --master_addr=$head_host \
-            --master_port=$head_port \
-            --local_rank=\$SLURM_PROCID \
-            --world_size=$SLURM_NTASKS \
-            --output=$results_dir \
+        python $omnihub_dir/scripts/hf-fine-tune-dist.py \
+            --model-dir=$model_dir \
+            --output-dir=$results_dir \
             --ddp \
-            -p $model_dir \
+            --manual-runner \
+            --master-addr=$head_host \
+            --master-port=$head_port \
+            --rank=\$SLURM_PROCID \
+            --world-size=$SLURM_NTASKS \
             > $results_dir/srun-\$SLURM_PROCID.out \
             2> $results_dir/srun-\$SLURM_PROCID.err"
