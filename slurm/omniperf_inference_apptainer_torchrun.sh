@@ -2,9 +2,12 @@
 #SBATCH -J omnihub
 #SBATCH -o %j-slurm.out
 #SBATCH -N 2
-#SBATCH --tasks-per-node=4
-#SBATCH -t 08:00:00
+#SBATCH --tasks-per-node=1
+#SBATCH -t 01:00:00
 #SBATCH -p mi2104x
+
+
+module load rocm/6.0.2
 
 slurm_file=$(scontrol show job $SLURM_JOBID | awk -F= '/Command=/{print $2}')
 slurm_dir="$(dirname "$slurm_file")"
@@ -35,22 +38,19 @@ export NCCL_ENABLE_DMABUF_SUPPORT=0
 export NCCL_IB_DISABLE=0
 export NCCL_P2P_DISABLE=0
 
-module load rocm/6.0.2
-
-# srun to launch one apptainer task per GPU in each node; each apptainer
-# container then executes omniperf to profile each process separately.
+# srun to launch one apptainer task per node; inside of the container, launch
+# one process per GPU using torchrun.
 srun \
     apptainer run --rocm \
-        $shared_dir/apptainer/omnihub-mpi.sif -c "cd $results_dir; \
+        $WORK/omnihub.sif -c " \
         $omnihub_dir/slurm/run_omniperf_apptainer.bash \
-        /apptainer/conda/bin/python $omnihub_dir/scripts/hf-fine-tune-dist.py \
-            --model-dir=$model_dir \
-            --output-dir=$results_dir \
-            --ddp \
-            --manual-runner \
+        /apptainer/conda/bin/torchrun \
+            --nnodes=$SLURM_JOB_NUM_NODES \
+            --nproc_per_node=$num_gpus \
             --master_addr=$head_host \
             --master_port=$head_port \
-            --rank=\$SLURM_PROCID \
-            --world_size=$SLURM_NTASKS \
-            > $results_dir/srun-\$SLURM_PROCID.out \
-            2> $results_dir/srun-\$SLURM_PROCID.err"
+            --node-rank=\$SLURM_PROCID \
+            --log-dir $results_dir \
+            --redirect 3 \
+            $omnihub_dir/scripts/hf-fine-tune-ddp-torchrun.py \
+            --ddp -p $model_dir --output=$results_dir"
