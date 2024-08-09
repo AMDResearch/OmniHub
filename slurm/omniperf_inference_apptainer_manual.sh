@@ -42,7 +42,7 @@ module load rocm/6.0.2
 # container then executes omniperf to profile each process separately.
 srun \
     apptainer run --rocm \
-        $shared_dir/apptainer/omnihub-mpi.sif -c "cd $results_dir; \
+        $shared_dir/apptainer/omnihub.sif -c "cd $results_dir; \
         $omnihub_dir/slurm/run_omniperf_apptainer.bash \
         /apptainer/conda/bin/python $omnihub_dir/scripts/hf-inference.py \
             --ddp \

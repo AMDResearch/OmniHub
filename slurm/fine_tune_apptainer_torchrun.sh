@@ -39,7 +39,7 @@ export NCCL_P2P_DISABLE=0
 # one process per GPU using torchrun.
 srun \
     apptainer run --rocm \
-        $shared_dir/apptainer/omnihub-torchrun.sif -c " \
+        $shared_dir/apptainer/omnihub.sif -c " \
         torchrun \
             --nnodes=$SLURM_JOB_NUM_NODES \
             --nproc_per_node=$num_gpus \

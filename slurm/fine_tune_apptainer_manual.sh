@@ -39,7 +39,7 @@ export NCCL_P2P_DISABLE=0
 # container then executes a single python process.
 srun \
     apptainer run --rocm \
-        $shared_dir/apptainer/omnihub-mpi.sif -c " \
+        $shared_dir/apptainer/omnihub.sif -c " \
         python $omnihub_dir/scripts/hf-fine-tune-dist.py \
             --model-dir=$model_dir \
             --output-dir=$results_dir \
