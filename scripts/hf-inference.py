@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-import contextlib
-import importlib.util
 import os
 import sys
 
@@ -11,69 +9,50 @@ import transformers
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from accelerate import PartialState
 
+from omnihub import tracer
+
 parser = ArgumentParser(description="Run inference on an LLM model",
-                        formatter_class=ArgumentDefaultsHelpFormatter)
-parser.add_argument("-p", "--path", help="path to model")
-parser.add_argument("--ddp", action="store_true", help="run with DDP")
-parser.add_argument("--omnitrace", action="store_true", help="enable omnitrace")
+                    formatter_class=ArgumentDefaultsHelpFormatter)
+parser.add_argument("-p", "--path", help="Path to the model", required=True)
+parser.add_argument("--ddp", action="store_true", help="Run with DDP")
+parser.add_argument("--omnitrace", action="store_true", help="Enable omnitrace")
 args = vars(parser.parse_args())
 
-if os.path.exists(args["path"]):
-    base_model = args["path"]
-else:
-    print("path does not exist")
-    sys.exit(1)
+@tracer.profile(use_omnitrace=args["omnitrace"])
+def run_inference(model_path: str=None, use_ddp: bool=False):
+    pipeline = transformers.pipeline(
+        "text-generation",
+        model=model_path,
+        model_kwargs={
+            "torch_dtype": torch.float16,
+            "quantization_config": {"load_in_4bit": True},
+            "low_cpu_mem_usage": True,
+        },
+        device_map= {"": PartialState().process_index} if use_ddp else "auto",
+    )
 
-# The relevant section of the code to be analyzed is wrapped around a context;
-# by default it won't do anything, but it can change to enable profiling.
-context = contextlib.nullcontext()
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant!"},
+        {"role": "user", "content": """Generate an approximately fifteen-word sentence 
+                                    that describes all this data:
+                                    Midsummer House eatType restaurant; 
+                                    Midsummer House food Chinese; 
+                                    Midsummer House priceRange moderate; 
+                                    Midsummer House customer rating 3 out of 5; 
+                                    Midsummer House near All Bar One"""},
+    ]
 
-if args["omnitrace"]:
-    # Attempt to add the omnitrace python module, which is installed in
-    # /opt/omnitrace in the Docker image. To run outside of the Docker with
-    # omnitrace installed in a different path, set PYTHONPATH accordingly.
-    sys.path.insert(0, "/opt/omnitrace/lib/python/site-packages/")
-    omnitrace_spec = importlib.util.find_spec("omnitrace")
-    if omnitrace_spec is None:
-        print("unable to find omnitrace module")
-        sys.exit(1)
-    from omnitrace import profile
-    context = profile()
+    prompt = pipeline.tokenizer.apply_chat_template(
+            messages, 
+            tokenize=False, 
+            add_generation_prompt=True
+    )
 
-pipeline = transformers.pipeline(
-    "text-generation",
-    model=base_model,
-    model_kwargs={
-        "torch_dtype": torch.float16,
-        "quantization_config": {"load_in_4bit": True},
-        "low_cpu_mem_usage": True,
-    },
-    device_map= {"": PartialState().process_index} if args["ddp"] else "auto",
-)
+    terminators = [
+        pipeline.tokenizer.eos_token_id,
+        pipeline.tokenizer.convert_tokens_to_ids("<|eot_id|>")
+    ]
 
-messages = [
-    {"role": "system", "content": "You are a helpful assistant!"},
-    {"role": "user", "content": """Generate an approximately fifteen-word sentence 
-                                   that describes all this data:
-                                   Midsummer House eatType restaurant; 
-                                   Midsummer House food Chinese; 
-                                   Midsummer House priceRange moderate; 
-                                   Midsummer House customer rating 3 out of 5; 
-                                   Midsummer House near All Bar One"""},
-]
-
-prompt = pipeline.tokenizer.apply_chat_template(
-        messages, 
-        tokenize=False, 
-        add_generation_prompt=True
-)
-
-terminators = [
-    pipeline.tokenizer.eos_token_id,
-    pipeline.tokenizer.convert_tokens_to_ids("<|eot_id|>")
-]
-
-with context:
     outputs = pipeline(
         prompt,
         max_new_tokens=256,
@@ -84,3 +63,21 @@ with context:
     )
 
     print(outputs[0]["generated_text"][len(prompt):])
+
+def main():
+    if os.path.exists(args["path"]):
+        base_model = args["path"]
+    else:
+        print("Path does not exist")
+        parser.print_help()
+        sys.exit(1)
+
+    run_inference(base_model, args["ddp"])
+
+    # (alternate) context manager approach
+    #with tracer.profile(use_omnitrace=args["omnitrace"]):
+    #    run_inference(base_model, args["ddp"])
+
+if __name__ == "__main__":
+    main()
+
