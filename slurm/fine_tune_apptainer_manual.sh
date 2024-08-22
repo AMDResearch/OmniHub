@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH -J omnihub
 #SBATCH -o %j-slurm.out
+#SBATCH -e %j-slurm.err
 #SBATCH -N 2
 #SBATCH --tasks-per-node=4
 #SBATCH -t 01:00:00
@@ -35,19 +36,24 @@ export NCCL_ENABLE_DMABUF_SUPPORT=0
 export NCCL_IB_DISABLE=0
 export NCCL_P2P_DISABLE=0
 
+# Set omnitrace env vars
+export OMNITRACE_OUTPUT_PATH=$results_dir/omnitrace-%tag%-output
+
 # srun to launch one apptainer task per GPU in each node; each apptainer
 # container then executes a single python process.
 srun \
+    -N$SLURM_JOB_NUM_NODES -n$((SLURM_JOB_NUM_NODES*4)) \
     apptainer run --rocm \
         $shared_dir/apptainer/omnihub.sif -c " \
-        python $omnihub_dir/scripts/hf-fine-tune-dist.py \
+        \$CONDA_DIR/bin/python $omnihub_dir/scripts/hf-fine-tune-dist.py \
             --model-dir=$model_dir \
             --output-dir=$results_dir \
             --ddp \
+            --omnitrace \
             --manual-runner \
             --master-addr=$head_host \
             --master-port=$head_port \
             --rank=\$SLURM_PROCID \
-            --world-size=$SLURM_NTASKS \
+            --world-size=\$SLURM_NTASKS \
             > $results_dir/srun-\$SLURM_PROCID.out \
             2> $results_dir/srun-\$SLURM_PROCID.err"

@@ -3,34 +3,33 @@ From: rocm/dev-ubuntu-22.04:6.0-complete
 Stage: spython-base
 
 %files
-docker/requirements.txt /tmp/requirements.txt
+docker/requirements.txt /omnihub/requirements.txt
 docker/fix-host-owner.sh /usr/local/bin/fix-host-owner
 %post
-# Dockerfile to run LLAMA models with ROCm
+# Image file to run LLAMA models with ROCm
 #
 # This container is meant to be used for prototyping an automated pipeline and
 # collect performance data in our clusters.
 #
 # It builds and runs everything as root; ownership of any output may need to
 # be fixed to ensure they can be read outside the container. If executed
-# mounting the /host-home volume (as in docker/run-docker-ubuntu-dev.sh), the
-# `fix-host-owner' script can be used to make sure any directory is owned by
-# the same user running the container.
+# mounting the /host-home volume (with docker/run-docker-ubuntu-dev.sh) or running in
+# host-mounted directories, the `fix-host-owner' script can be used to make sure any 
+# directory is owned by the same user running the container.
 
 
 CONDA_INSTALLER=https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 OMNIPERF_TARBALL=https://github.com/ROCm/omniperf/releases/download/v2.0.0-RC1/omniperf-2.0.0-RC1.tar.gz
-OMNITRACE_INSTALLER=https://github.com/ROCm/omnitrace/releases/download/v1.11.2/omnitrace-1.11.2-ubuntu-22.04-ROCm-60000-PAPI-OMPT-Python3.sh
+OMNITRACE_INSTALLER=https://github.com/ROCm/omnitrace/releases/download/v1.11.4/omnitrace-1.11.4-ubuntu-22.04-ROCm-60000-PAPI-OMPT-Python3.sh
 PYTORCH_URL=https://download.pytorch.org/whl/rocm6.0
-PYTORCH_URL_NIGHTLY=https://download.pytorch.org/whl/nightly/rocm6.1/
 
 DEBIAN_FRONTEND=noninteractive
 
-CONDA_DIR=/apptainer/conda
-OMNIPERF_DIR=/apptainer/omniperf
-OMNITRACE_DIR=/apptainer/omnitrace
+CONDA_DIR=/opt/conda
+OMNIPERF_DIR=/opt/omniperf
+OMNITRACE_DIR=/opt/omnitrace
 PATH="$CONDA_DIR/bin:$OMNIPERF_DIR/bin:$OMNITRACE_DIR/bin:$PATH"
-PYTHONPATH="$CONDA_DIR/lib/python3.9/site-packages:$PYTHONPATH"
+PYTHONPATH="$CONDA_DIR/lib/python3.9/site-packages:$OMNITRACE_DIR/lib/python/site-packages:$PYTHONPATH"
 
 apt update && \
 apt install -y \
@@ -46,8 +45,8 @@ glibc-source && \
 rm -rf /var/cache/apt/archives /var/lib/apt/lists && \
 locale-gen en_US.UTF-8
 
-mkdir -p /tmp
-cd /tmp
+mkdir -p /omnihub
+cd /omnihub
 
 wget --quiet $CONDA_INSTALLER -O /tmp/miniconda.sh && \
 bash /tmp/miniconda.sh -b -p $CONDA_DIR && \
@@ -77,8 +76,8 @@ pip install -e . && \
 cd && \
 rm -rf /tmp/llama-recipes
 
-pip install -r /tmp/requirements.txt && \
-rm -f /tmp/requirements.txt
+pip install -r /omnihub/requirements.txt && \
+rm -f /omnihub/requirements.txt
 
 wget --quiet $OMNIPERF_TARBALL -O /tmp/omniperf.tar.gz && \
 tar xfz /tmp/omniperf.tar.gz -C /tmp && \
@@ -94,20 +93,22 @@ make install && \
 rm -f /tmp/omniperf.tar.gz && \
 rm -rf /tmp/$omniperf_basedir
 
-#wget --quiet $OMNITRACE_INSTALLER -O /tmp/omnitrace-install.sh && \
-#mkdir $OMNITRACE_DIR && \
-#bash /tmp/omnitrace-install.sh --prefix=$OMNITRACE_DIR --exclude-subdir && \
-#rm -f /tmp/omnitrace-install.sh
+wget --quiet $OMNITRACE_INSTALLER -O /tmp/omnitrace-install.sh && \
+mkdir $OMNITRACE_DIR && \
+cd $OMNITRACE_DIR && \
+bash /tmp/omnitrace-install.sh --prefix=$OMNITRACE_DIR --exclude-subdir && \
+cd && \
+rm -f /tmp/omnitrace-install.sh
 
 %environment
-export CONDA_DIR=/apptainer/conda
-export OMNIPERF_DIR=/apptainer/omniperf
-export OMNITRACE_DIR=/apptainer/omnitrace
+export CONDA_DIR=/opt/conda
+export OMNIPERF_DIR=/opt/omniperf
+export OMNITRACE_DIR=/opt/omnitrace
 export PATH="$CONDA_DIR/bin:$OMNIPERF_DIR/bin:$OMNITRACE_DIR/bin:$PATH"
-export PYTHONPATH="$CONDA_DIR/lib/python3.9/site-packages:$PYTHONPATH"
+export PYTHONPATH="$CONDA_DIR/lib/python3.9/site-packages:$OMNITRACE_DIR/lib/python/site-packages:$PYTHONPATH"
 %runscript
-cd /tmp
+cd /omnihub
 exec /bin/bash "$@"
 %startscript
-cd /tmp
+cd /omnihub
 exec /bin/bash "$@"

@@ -8,6 +8,7 @@ import torch
 import torch.distributed as dist
 
 from omnihub import finetune
+from omnihub import tracer
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-m", "--model-dir", help="Path to model", type=str, required=True)
@@ -20,6 +21,7 @@ parser.add_argument("--master-addr", type=str)
 parser.add_argument("--master-port", type=str)
 parser.add_argument("--rank", type=int)
 parser.add_argument("--world-size", type=int)
+parser.add_argument("--omnitrace", action="store_true", help="Enable omnitrace")
 
 args = parser.parse_args()
 
@@ -52,7 +54,8 @@ if args.manual_runner:
 setup = finetune.setup_finetune(args)
 model, train_dataset, peft_config, tokenizer, train_args = setup
 
-finetune.run_finetune(model, train_dataset, peft_config, tokenizer, train_args)
+with tracer.profile(use_omnitrace=args.omnitrace):
+    finetune.run_finetune(model, train_dataset, peft_config, tokenizer, train_args)
 finetune.run_inference(model, tokenizer)
 
 if args.manual_runner:

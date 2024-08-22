@@ -1,13 +1,13 @@
-# Dockerfile to run LLAMA models with ROCm
+# Image file to run LLAMA models with ROCm
 #
 # This container is meant to be used for prototyping an automated pipeline and
 # collect performance data in our clusters.
 #
 # It builds and runs everything as root; ownership of any output may need to
 # be fixed to ensure they can be read outside the container. If executed
-# mounting the /host-home volume (as in docker/run-docker-ubuntu-dev.sh), the
-# `fix-host-owner' script can be used to make sure any directory is owned by
-# the same user running the container.
+# mounting the /host-home volume (with docker/run-docker-ubuntu-dev.sh) or running in
+# host-mounted directories, the `fix-host-owner' script can be used to make sure any 
+# directory is owned by the same user running the container.
 
 FROM rocm/dev-ubuntu-22.04:6.0-complete
 
@@ -26,6 +26,9 @@ ENV PYTHONPATH="$CONDA_DIR/lib/python3.9/site-packages:$OMNITRACE_DIR/lib/python
 
 RUN apt update && \
     apt install -y \
+        libibverbs1 \
+        ibverbs-utils \
+        ibverbs-providers \
         cmake \
         git \
         vim \
@@ -35,7 +38,7 @@ RUN apt update && \
     rm -rf /var/cache/apt/archives /var/lib/apt/lists && \
     locale-gen en_US.UTF-8
 
-WORKDIR /tmp
+WORKDIR /omnihub
 
 RUN wget --quiet $CONDA_INSTALLER -O /tmp/miniconda.sh && \
     bash /tmp/miniconda.sh -b -p $CONDA_DIR && \
@@ -65,9 +68,9 @@ RUN git clone https://github.com/meta-llama/llama-recipes.git && \
     cd && \
     rm -rf /tmp/llama-recipes
 
-COPY docker/requirements.txt /tmp/requirements.txt
-RUN pip install -r /tmp/requirements.txt && \
-    rm -f /tmp/requirements.txt
+COPY docker/requirements.txt /omnihub/requirements.txt
+RUN pip install -r /omnihub/requirements.txt && \
+    rm -f /omnihub/requirements.txt
 
 RUN wget --quiet $OMNIPERF_TARBALL -O /tmp/omniperf.tar.gz && \
     tar xfz /tmp/omniperf.tar.gz -C /tmp && \
@@ -85,7 +88,9 @@ RUN wget --quiet $OMNIPERF_TARBALL -O /tmp/omniperf.tar.gz && \
 
 RUN wget --quiet $OMNITRACE_INSTALLER -O /tmp/omnitrace-install.sh && \
     mkdir $OMNITRACE_DIR && \
+    cd $OMNITRACE_DIR && \
     bash /tmp/omnitrace-install.sh --prefix=$OMNITRACE_DIR --exclude-subdir && \
+    cd && \
     rm -f /tmp/omnitrace-install.sh
 
 COPY docker/fix-host-owner.sh /usr/local/bin/fix-host-owner

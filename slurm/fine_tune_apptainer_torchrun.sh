@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH -J omnihub
 #SBATCH -o %j-slurm.out
+#SBATCH -e %j-slurm.err
 #SBATCH -N 2
 #SBATCH --tasks-per-node=1
 #SBATCH -t 01:00:00
@@ -35,13 +36,16 @@ export NCCL_ENABLE_DMABUF_SUPPORT=0
 export NCCL_IB_DISABLE=0
 export NCCL_P2P_DISABLE=0
 
+# Set omnitrace env vars
+export OMNITRACE_OUTPUT_PATH=$results_dir/omnitrace-%tag%-output
+
 # srun to launch one apptainer task per node; inside of the container, launch
 # one process per GPU using torchrun.
 srun \
     apptainer run --rocm \
         $shared_dir/apptainer/omnihub.sif -c " \
         torchrun \
-            --nnodes=$SLURM_JOB_NUM_NODES \
+            --nnodes=\$SLURM_JOB_NUM_NODES \
             --nproc_per_node=$num_gpus \
             --master_addr=$head_host \
             --master_port=$head_port \
@@ -49,4 +53,4 @@ srun \
             --log-dir $results_dir \
             --redirect 3 \
             $omnihub_dir/scripts/hf-fine-tune-dist.py \
-            --model-dir=$model_dir --output-dir=$results_dir --ddp"
+            --model-dir=$model_dir --output-dir=$results_dir --ddp --omnitrace"
