@@ -1,5 +1,10 @@
-# Model Organization on RADHA
-All ML models are stored at `radha:/home/shared/projs/omnihub/ml-models`. These models are organized as a flat structure with an approximate naming convention like `<org>-<model>-<params>-<task>-<format>`.
+# Model Organization
+All ML models are stored on the following clusters and the corresponding locations.
+
+- `radha:/home/shared/projs/omnihub/ml-models`
+- `hpcfund:/work1/amd/omnihub/ml-models`
+ 
+The models are organized as a flat structure with an approximate naming convention like `<org>-<model>-<params>-<task>-<format>`.
 
 ## Use case: Llama
 For example, Llama2 models that are fine tuned for the "chat" task are organized into the following directories.
