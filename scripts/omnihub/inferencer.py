@@ -1,5 +1,5 @@
 import torch
-from accelerate import PartialState, DistributedType
+from accelerate import DistributedType, PartialState
 from transformers import pipeline
 
 
@@ -31,12 +31,12 @@ class Inferencer:
             {"role": "system", "content": "You are a helpful assistant!"},
             {
                 "role": "user",
-                "content": """Generate an approximately fifteen-word sentence 
+                "content": """Generate an approximately fifteen-word sentence
                                         that describes all this data:
-                                        Midsummer House eatType restaurant; 
-                                        Midsummer House food Chinese; 
-                                        Midsummer House priceRange moderate; 
-                                        Midsummer House customer rating 3 out of 5; 
+                                        Midsummer House eatType restaurant;
+                                        Midsummer House food Chinese;
+                                        Midsummer House priceRange moderate;
+                                        Midsummer House customer rating 3 out of 5;
                                         Midsummer House near All Bar One""",
             },
         ]

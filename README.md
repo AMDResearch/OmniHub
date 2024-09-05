@@ -56,6 +56,9 @@ To collect analyitic data from your run, explore these supported analysis option
     - Use [Omnistat](https://github.com/AMDResearch/omnistat): `-s`
 
 
+## Developer
+If you want to contribute to OmniHub, make sure you read [this document](docs/developer.md) for developer pre-requisites.
+
 ## Use cases
 
 ### Multi-node Llama2 on HPC Fund

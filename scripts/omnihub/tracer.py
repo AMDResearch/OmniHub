@@ -1,7 +1,7 @@
 import contextlib
-from contextlib import ExitStack
 import importlib.util
 import sys
+from contextlib import ExitStack
 
 
 def get_omnitrace_cm():

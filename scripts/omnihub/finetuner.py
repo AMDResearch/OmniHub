@@ -1,24 +1,12 @@
 import os
 import sys
 
-import torch
 import bitsandbytes as bnb
-
+import torch
+from accelerate import DistributedType, PartialState
 from datasets import load_dataset
-from accelerate import PartialState, DistributedType
-
-from peft import (
-    LoraConfig,
-    get_peft_model,
-    prepare_model_for_kbit_training,
-)
-
-from transformers import (
-    AutoModelForCausalLM,
-    BitsAndBytesConfig,
-    TrainingArguments,
-)
-
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from transformers import AutoModelForCausalLM, BitsAndBytesConfig, TrainingArguments
 from trl import SFTTrainer
 
 
@@ -72,7 +60,7 @@ class FineTuner:
             group_by_length=True,
             lr_scheduler_type="constant",
             report_to=None,  # "tensorboard"
-            gradient_checkpointing_kwargs={'use_reentrant':False},
+            gradient_checkpointing_kwargs={"use_reentrant": False},
         )
 
         model = AutoModelForCausalLM.from_pretrained(

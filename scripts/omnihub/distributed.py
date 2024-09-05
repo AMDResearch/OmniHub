@@ -1,7 +1,8 @@
-import torch
-import torch.distributed as dist
 import os
 import sys
+
+import torch
+import torch.distributed as dist
 
 
 def is_manual_ddp(*manual_args):
