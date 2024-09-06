@@ -21,7 +21,7 @@ def find_all_linear_names(model):
 
 
 class FineTuner:
-    def __init__(self, args, manual_ddp: bool = False):
+    def __init__(self, args):
         model_path = args.model_dir
 
         # New instruction dataset

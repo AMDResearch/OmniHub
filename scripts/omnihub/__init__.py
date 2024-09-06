@@ -44,6 +44,11 @@ def setup_parser():
     parser.add_argument("--master-port", type=str)
     parser.add_argument("--rank", type=int)
     parser.add_argument("--world-size", type=int)
+    parser.add_argument(
+        "--manual-launch-ddp",
+        action="store_true",
+        help="Manual launcher to run with DDP",
+    )
 
     # Tools
     parser.add_argument("--omnitrace", action="store_true", help="Enable omnitrace")
@@ -72,7 +77,7 @@ class Omnihub:
 
     def run(self):
         if self.args.mode == Mode.FineTune:
-            ft = finetuner.FineTuner(args=self.args, manual_ddp=self.dist.manual_ddp)
+            ft = finetuner.FineTuner(args=self.args)
             with tracer.profile(use_omnitrace=self.args.omnitrace):
                 ft.run()
         elif self.args.mode == Mode.Infer:
