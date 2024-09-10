@@ -6,7 +6,7 @@
 # It builds and runs everything as root; ownership of any output may need to
 # be fixed to ensure they can be read outside the container. If executed
 # mounting the /host-home volume (with docker/run-docker-ubuntu-dev.sh) or running in
-# host-mounted directories, the `fix-host-owner' script can be used to make sure any 
+# host-mounted directories, the `fix-host-owner' script can be used to make sure any
 # directory is owned by the same user running the container.
 
 FROM rocm/dev-ubuntu-22.04:6.0-complete
@@ -34,6 +34,8 @@ RUN apt update && \
         vim \
         wget \
         locales \
+        iproute2 \
+        net-tools \
         glibc-source && \
     rm -rf /var/cache/apt/archives /var/lib/apt/lists && \
     locale-gen en_US.UTF-8
