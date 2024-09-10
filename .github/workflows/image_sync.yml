@@ -40,11 +40,8 @@ jobs:
           git config --global user.name 'docker-apptainer-syncup-bot'
           git config --global user.email 'bot@no-reply.com'
           git add apptainer/*.def
-          git diff-index --cached --quiet HEAD apptainer/*.def
-          retVal=$?
-          if [ $retVal -ne 0 ]; then
-            git commit -m 'Converted Dockerfiles to corresponding Apptainer definition files'
-            git push
-          fi
+          git diff-index --cached --quiet HEAD apptainer/*.def || \
+          ( git commit -m 'Converted Dockerfiles to corresponding Apptainer definition files' && \
+          git push )
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

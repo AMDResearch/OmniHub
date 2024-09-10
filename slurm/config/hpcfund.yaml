@@ -1,0 +1,25 @@
+cluster:
+  name: hpcfund
+  models-dir: /work1/models/amd
+  shared-dir: /work1/amd/omnihub
+  results-dir: $WORK/results/omnihub/$SLURM_JOB_ID
+  container-platform: apptainer
+  subsets:
+    - partition: mi2104x
+      gpu: mi210
+      num-gpus: 4
+      num-nodes: 20
+    - partition: mi2508x
+      gpu: mi250
+      num-gpus: 8
+      num-nodes: 8
+    - partition: mi1008x
+      gpu: mi100
+      num-gpus: 8
+      num-nodes: 6
+  models:
+    - Meta-Llama-2-7B-Chat-safetensors
+    - Meta-Llama-3-8B-Instruct-safetensors
+    - Meta-Llama-3.1-8B-Instruct-safetensors
+    - Meta-Llama-3.1-70B-Instruct-safetensors
+    - Meta-Llama-3.1-405B-Instruct-safetensors

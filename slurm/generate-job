@@ -1,0 +1,382 @@
+#!/usr/bin/env python3
+#
+# generate-job -- Generate a SLURM job file to run Omnihub models
+#
+# This script uses the given arguments to generate a single SLURM job file and
+# print it to stdout. The generated scripts are tailored to be executed in a
+# particular cluster, and details about each supported cluster are described in
+# YAML files in the configuration directory, e.g. `config/hpcfund.yaml`.
+#
+# The main command to be executed by the SLURM job is generated starting with
+# the innermost Python script and then building around it as follows:
+#  1. Python script (`base_command`) and additional arguments (`base_args`).
+#  2. Prefixes to the Python script (`base_prefix`), which can include certain
+#     runners like torchrun, or profilers like omniperf.
+#  3. Container wrappers, to create the right execution environment for
+#     container platforms like Apptainer (`apptainer_wrap`) and Docker
+#     (`docker_wrap`).
+#
+# In addition to the main command to be executed, there are other ways to
+# configure the execution, including:
+#  - Commands to be executed before and after the main command: `pre_execute`
+#    and `post_execute`. These can be useful to set up certain profiling tools
+#    like Omnistat.
+#  - Environment variables, included in `environment`. These can be used to
+#    configure certain paths, like Omnitrace's output directory, and are
+#    automatically reformatted for different contexts.
+
+import argparse
+import os
+import pathlib
+import sys
+from string import Template
+
+import yaml
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--omnihub-dir", help="Path to Omnihub", type=str, required=True)
+parser.add_argument(
+    "--cluster",
+    help="Name of the cluster. Values: hpcfund (default), radha.",
+    type=str,
+    default="hpcfund",
+)
+parser.add_argument(
+    "--partition", help="Partition of the cluster", type=str, required=False
+)
+parser.add_argument(
+    "--num-nodes", help="Number of nodes. Default value: 1.", type=int, default=1
+)
+parser.add_argument("--model", help="Model to evaluate", type=str, required=False)
+parser.add_argument(
+    "--stage",
+    help="Stage to execute. Values: infer (default), finetune.",
+    type=str,
+    default="infer",
+)
+parser.add_argument(
+    "--runner",
+    help="Distributed runner. Required for multiple nodes. Values: manual, torchrun.",
+    type=str,
+    required=False,
+)
+parser.add_argument(
+    "--profile",
+    help="List of profilers to use. Values: omniperf, omnitrace, omnistat.",
+    type=str,
+    nargs="+",
+)
+
+args = parser.parse_args()
+
+# Paths to YAML configuration files.
+script_path = pathlib.Path(__file__).parent.resolve()
+config_dir = f"{script_path}/config"
+template_file = f"{config_dir}/job.template"
+cluster_file = f"{config_dir}/{args.cluster}.yaml"
+
+# Omnihub scripts for each stage.
+scripts = {
+    "infer": "omnihub-hf.py --mode infer",
+    "finetune": "omnihub-hf.py --mode finetune",
+}
+
+# Sets of options supported by the generator.
+stages = set(scripts.keys())
+platforms = {"apptainer", "docker"}
+runners = {"manual", "torchrun"}
+profilers = {"omniperf", "omnitrace", "omnistat"}
+
+# Lists of commands to execute.
+pre_execute = []
+execute = []
+post_execute = []
+
+environment = []
+
+base_prefix = []
+base_args = []
+base_command = (
+    "{omnihub_dir}/scripts/{base_script} {base_args}"
+    " --model-dir={model_dir}"
+    " --output-dir={results_dir}"
+    " > {results_dir}/srun-\$SLURM_PROCID.out"
+    " 2> {results_dir}/srun-\$SLURM_PROCID.err"
+)
+
+manual_args = [
+    "--manual-launch-ddp",
+    "--master-addr=$head_host",
+    "--master-port=$head_port",
+    "--rank=\$SLURM_PROCID",
+    "--world-size=$SLURM_NTASKS",
+]
+
+torchrun_prefix = (
+    "torchrun"
+    " --nnodes=\$SLURM_JOB_NUM_NODES"
+    " --nproc_per_node=$num_gpus_per_node"
+    " --master_addr=$head_host"
+    " --master_port=$head_port"
+    " --node-rank=\$SLURM_PROCID"
+    " --log-dir {results_dir}"
+    " --redirect 3"
+)
+
+omniperf_prefix = "omniperf profile --path {results_dir}/omniperf --"
+
+omnitrace_args = ["--omnitrace"]
+omnitrace_environment = [
+    ("OMNITRACE_OUTPUT_PATH", "{results_dir}/omnitrace-%tag%-output")
+]
+
+omnistat_pre_execute = [
+    "# Configure and start Omnistat",
+    "export OMNISTAT_CONFIG=$shared_dir/tools/omnistat/run/omnihub.config",
+    "export OMNISTAT_PROMSERVER_DATADIR=$results_dir/omnistat/prometheus",
+    "omnistat_dir=$shared_dir/tools/omnistat/run/venv/bin/",
+    "mkdir omnistat",
+    "cd omnistat",
+    "$omnistat_dir/omnistat-usermode --start --interval 1",
+    "cd -",
+]
+omnistat_post_execute = [
+    "# Stop Omnistat",
+    "$omnistat_dir/omnistat-query --job $SLURM_JOB_ID --interval 1"
+    " > $results_dir/omnistat/report.txt",
+    "$omnistat_dir/omnistat-usermode --stop",
+]
+
+apptainer_wrap = (
+    'srun apptainer run --rocm $shared_dir/apptainer/omnihub.sif -c "{base_command}"'
+)
+
+docker_pre_execute = [
+    "# Build docker image",
+    "srun --ntasks-per-node 1 --chdir $omnihub_dir bash docker/build-docker-ubuntu-dev.sh",
+]
+docker_wrap = (
+    'srun bash -c "docker run --rm {docker_args}'
+    " -v $omnihub_dir:$docker_omnihub_dir:ro"
+    " -v $models_dir:$docker_models_dir:ro"
+    " -v $shared_dir:$docker_shared_dir:ro"
+    " -v $results_dir:$docker_results_dir"
+    " -w $docker_results_dir"
+    " --env-file=<(env | grep -E 'SLURM|NCCL')"
+    " --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+    " --device=/dev/kfd --device=/dev/dri"
+    " --network=host --ipc=host --shm-size 8G"
+    " omnihub:latest"
+    ' bash -c \\"{base_command}; fix-host-owner $docker_results_dir\\""'
+)
+
+# Temporarily using these per-cluster commands for testing. These are
+# candidates to be included in the cluster-specific configuration files, but
+# it's still not clear how these should be exposed, or if we can find another
+# option that works in all clusters.
+head_host_commands = {
+    "hpcfund": "$(ip -f inet addr show eth0 | awk '/inet / {print $2}' | cut -d/ -f1)",
+    "radha": "$(dig +short $(hostname).amd.com)",
+}
+
+
+# STEP 1. Basic validation of command line options.
+
+if not os.path.isdir(config_dir):
+    print(f"Unable to find configuration directory: {config_dir}")
+    sys.exit(1)
+
+if not os.path.isfile(template_file):
+    print(f"Unable to find job template: {template_file}")
+    sys.exit(1)
+
+if not os.path.isfile(cluster_file):
+    print(f"Unable to find cluster configuration: {cluster_file}")
+    sys.exit(1)
+
+if args.stage not in stages:
+    print(f"Unsupported stage: {args.stage}")
+    sys.exit(1)
+
+if args.runner and args.runner not in runners:
+    print(f"Unsupported distributed runner: {args.runner}")
+    sys.exit(1)
+
+if args.num_nodes > 1 and not args.runner:
+    print(f"Multi-node execution requires a distributed runner")
+    sys.exit(1)
+
+if args.profile and not set(args.profile).issubset(profilers):
+    print(f"Unsupported profiler: {args.profile}")
+    sys.exit(1)
+
+if args.profile and set(args.profile).issuperset({"omniperf", "omnitrace"}):
+    print(f"Incompatible profilers: omniperf and omnitrace")
+    sys.exit(1)
+
+
+# STEP 2. Cluster-related validation, configuration and node selection.
+
+with open(cluster_file, "r") as f:
+    cluster = yaml.safe_load(f)["cluster"]
+
+platform = cluster["container-platform"]
+models_dir = cluster["models-dir"]
+shared_dir = cluster["shared-dir"]
+results_dir = cluster["results-dir"]
+partitions = {x["partition"]: x for x in cluster["subsets"]}
+models = cluster["models"]
+
+if platform not in platforms:
+    print(f"Unsupported container platform: {platform}")
+    sys.exit(1)
+
+# If partition argument is not present, default to first partition in the cluster.
+partition_name = args.partition
+if not partition_name:
+    partition_name = cluster["subsets"][0]["partition"]
+
+if partition_name not in partitions.keys():
+    print(f"Unable to find partition: {partition_name}")
+    sys.exit(1)
+
+num_nodes = args.num_nodes
+max_num_nodes = partitions[partition_name]["num-nodes"]
+if num_nodes > max_num_nodes:
+    print(f"Requested {num_nodes} nodes; selected subset only has {max_num_nodes}")
+    sys.exit(1)
+
+# If model argument is not present, default to first model in the cluster.
+model = args.model if args.model else models[0]
+if model not in models:
+    print(f"Model not available in the cluster: {model}")
+    sys.exit(1)
+
+
+# STEP 3. Build commands to execute and configure profilers.
+
+# Default to using all GPUs in the partition.
+num_gpus_per_node = partitions[partition_name]["num-gpus"]
+num_tasks_per_node = num_gpus_per_node
+
+if platform == "docker":
+    pre_execute.extend(docker_pre_execute)
+
+if args.profile and "omnistat" in args.profile:
+    pre_execute.extend(omnistat_pre_execute)
+    post_execute.extend(omnistat_post_execute)
+
+if args.profile and "omnitrace" in args.profile:
+    environment.extend(omnitrace_environment)
+    base_args.extend(omnitrace_args)
+
+if args.profile and "omniperf" in args.profile:
+    base_prefix.append(omniperf_prefix)
+
+# Single node execution without a runner should be executed without distributed
+# execution as a single task.
+if not args.runner:
+    num_tasks_per_node = 1
+
+if args.runner == "manual":
+    base_args.extend(manual_args)
+
+if args.runner == "torchrun":
+    num_tasks_per_node = 1
+    base_prefix.append(torchrun_prefix)
+
+# Main set of variables as expected in the host context. We assume Apptainer
+# shares the same context as the host, so these are also used to format
+# Apptainer executions.
+variables = [
+    ("omnihub_dir", f"{args.omnihub_dir}"),
+    ("models_dir", f"{models_dir}"),
+    ("shared_dir", f"{shared_dir}"),
+    ("results_dir", f"{results_dir}"),
+    ("model", f"{model}"),
+    ("model_dir", f"{models_dir}/{model}"),
+    ("num_gpus_per_node", f"{num_gpus_per_node}"),
+    ("num_tasks_per_node", f"{num_tasks_per_node}"),
+]
+
+# Re-define paths that are different in Docker.
+docker_variables = [
+    ("omnihub_dir", "/omnihub"),
+    ("models_dir", "/models"),
+    ("shared_dir", "/shared"),
+    ("results_dir", "/results"),
+    ("model_dir", f"/models/{model}"),
+]
+
+# For completeness, make sure all missing variables in the Docker context have
+# the same values as the equivalent variable in the host.
+docker_variables_set = {x[0] for x in docker_variables}
+for name, value in variables:
+    if name not in docker_variables_set:
+        docker_variables.append((name, value))
+
+# Build the default map of host variables to format base_prefix, base_command,
+# and and all environment variables.
+variable_map = {x[0]: x[1] for x in variables}
+
+# Generate host environment variables as bash exports.
+if len(environment) > 0:
+    pre_execute.append("# Set environment variables")
+for variable, value in environment:
+    pre_execute.append(f"export {variable}={value.format(**variable_map)}")
+
+# Generate environment variables for the docker container, creating a list of
+# name-value tuples that is later passed to the docker CLI.
+docker_environment = []
+if platform == "docker":
+    variable_map = {x[0]: x[1] for x in docker_variables}
+    for variable, value in environment:
+        docker_environment.append((variable, value.format(**variable_map)))
+
+# Additional variables that are needed to format base_command.
+variable_map["base_script"] = scripts[args.stage]
+variable_map["base_args"] = " ".join(base_args)
+
+if base_prefix:
+    base_command = f"{' '.join(base_prefix)} {base_command}"
+
+base_command = base_command.format(**variable_map)
+
+command = base_command
+if platform == "apptainer":
+    command = apptainer_wrap.format(base_command=base_command)
+elif platform == "docker":
+    docker_args = " ".join([f"-e {x[0]}={x[1]}" for x in docker_environment])
+    command = docker_wrap.format(base_command=base_command, docker_args=docker_args)
+
+execute.append(command)
+
+
+# STEP 4. Generate job file.
+
+bash_variables = [f"{x[0]}={x[1]}" for x in variables]
+
+# Generate bash variables for Docker-related variables with a `docker_` prefix;
+# allows mapping volumes in the docker CLI, for example:
+#   -v $omnihub_dir:$docker_omnihub_dir`
+if platform == "docker":
+    bash_variables.extend([f"docker_{x[0]}={x[1]}" for x in docker_variables])
+
+substitutions = {
+    "job_name": "omnihub",
+    "partition": partition_name,
+    "num_nodes": num_nodes,
+    "variables": "\n".join(bash_variables),
+    "head_host_command": head_host_commands[args.cluster],
+    "num_tasks_per_node": num_tasks_per_node,
+    "num_gpus_per_node": num_gpus_per_node,
+    "time": "01:00:00",
+    "pre_execute_commands": "\n".join(pre_execute),
+    "execute_commands": "\n".join(execute),
+    "post_execute_commands": "\n".join(post_execute),
+}
+
+with open(template_file, "r") as f:
+    template = Template(f.read())
+
+print(template.safe_substitute(substitutions))

@@ -73,6 +73,7 @@ rm -rf /tmp/bitsandbytes
 
 git clone https://github.com/meta-llama/llama-recipes.git && \
 cd llama-recipes && \
+git checkout v0.0.3 && \
 pip install -U pip setuptools && \
 pip install -e . && \
 cd && \

@@ -1,0 +1,42 @@
+#!/bin/bash
+#SBATCH -J $job_name
+#SBATCH -o %j-slurm.out
+#SBATCH -N $num_nodes
+#SBATCH --tasks-per-node=$num_tasks_per_node
+#SBATCH -t $time
+#SBATCH -p $partition
+
+$variables
+
+head_host=$head_host_command
+head_port=29400
+
+# export NCCL_DEBUG=INFO
+# export NCCL_ENABLE_DMABUF_SUPPORT=0
+# export NCCL_IB_DISABLE=0
+# export NCCL_P2P_DISABLE=0
+
+if [[ ! -d $omnihub_dir ]]; then
+    echo "Error: failed to find Omnihub directory $omnihub_dir"
+    exit 1
+fi
+
+mkdir -p $results_dir
+cd $results_dir
+
+echo "Omnihub directory: $omnihub_dir"
+echo "Shared directory: $shared_dir"
+echo "Results directory: $results_dir"
+echo "Model: $model"
+echo "Model directory: $model_dir"
+echo "Head node: $head_host"
+echo "Head port: $head_port"
+echo "Number nodes: $num_nodes"
+echo "Number of GPUs per node: $num_gpus_per_node"
+echo "Number of tasks per node: $num_tasks_per_node"
+
+$pre_execute_commands
+
+$execute_commands
+
+$post_execute_commands

@@ -1,0 +1,19 @@
+cluster:
+  name: radha
+  models-dir: /home/shared/projs/omnihub/ml-models
+  shared-dir: /home/shared/projs/omnihub
+  results-dir: $HOME/results/omnihub/$SLURM_JOB_ID
+  container-platform: docker
+  subsets:
+    - partition: radhadefault
+      gpu: mi210
+      num-gpus: 4
+      num-nodes: 7
+  models:
+    - Meta-Llama-2-7B-Chat-safetensors
+    - Meta-Llama-2-13B-Chat-safetensors
+    - Meta-Llama-2-70B-Chat-safetensors
+    - Meta-Llama-3-8B-safetensors
+    - Meta-Llama-3-8B-Instruct-safetensors
+    - Meta-Llama-3-70B-safetensors
+    - Meta-Llama-3-70B-Instruct-safetensors

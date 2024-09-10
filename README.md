@@ -30,30 +30,31 @@ See [here](docs/models.md) for more details on the available ML models on Radha 
 
 ## Usage
 
-OmniHub operates using SLURM scripts, which you can submit to a compute environment using `sbatch`. Your OmniHub command may vary depending on the system you are using, how you would like to execute the model, and the analysis data that you wish to collect.
+Omnihub operates using SLURM jobs, which can be generated with the
+`generate-job` tool and are tailored to be executed in a particular
+environment. `generate-job` takes into consideration characteristics of the
+cluster where a job will run as well as user-defined options like the version
+of the model, the scale of the execution, or the kind of performance data that
+needs to be collected.
 
+In its most basic form, SLURM job generation and execution work as follows:
 ```console
-sbatch slurm/<container>/<dist-execution-mode> -M <model-operation> [analysis options]
+./slurm/generate-job --omnihub-dir $HOME/omnihub > infer-single.slurm
+sbatch infer-single.slurm
 ```
+Where `--omnihub-dir` points to your working copy of the Omnihub repository in
+the cluster.
 
-  - **Containerization:**
-    - Docker: `sbatch slurm/docker/<dist-execution-mode>`
-    - Apptainer/Singularity: `sbatch slurm/apptainer/<dist-execution-mode>`
-
-  - **Distributed Execution Mode:**
-    - Manual: `sbatch slurm/<container>/manual.slurm`
-    - Torchrun: `sbatch slurm/<container>/torchrun.slurm`
-
-  - **Model Task:**
-    - Infer: `sbatch slurm/<container>/<dist-execution-mode> -M infer`
-    - Finetune:  `sbatch slurm/<container>/<dist-execution-mode> -M finetune`
-
-To collect analyitic data from your run, explore these supported analysis options:
-
-  - **Analysis Options**
-    - Use [Omniperf](https://github.com/ROCm/omniperf): `-p`
-    - Use [Omnitrace](https://github.com/ROCm/omnitrace): `-t`
-    - Use [Omnistat](https://github.com/AMDResearch/omnistat): `-s`
+| Flag            | Options                             | Description                                                                              |
+| --------------- | ----------------------------------- | ---------------------------------------------------------------------------------------- |
+| `--omnihub-dir` |                                     | Path to Omnihub working copy. Should be accessible by all nodes.                         |
+| `--cluster`     | **`hpcfund`**, `radha`              | Name of the cluster.                                                                     |
+| `--partition`   |                                     | Partition of the cluster; defaults to first partition in the cluster configuration file. |
+| `--num-nodes`   |                                     | Number of nodes to allocate for the execution.                                           |
+| `--model`       |                                     | Model to evaluate; defaults to first model in the cluster configuration file.            |
+| `--stage`       | **`infer`**, `finetune`             | ML lifecycle stage.                                                                      |
+| `--runner`      | `manual`, `torchrun`                | Distributed runner. Required for multi-node executions.                                  |
+| `--profile`     | `omniperf`, `omnitrace`, `omnistat` | Space-separated list of profilers to use.                                                |
 
 
 ## Developer
@@ -69,25 +70,25 @@ If the run was successful, you will find the execution logs at
 `$WORK/results/omnihub/$SLURM_JOB_ID`, with which you may do further analysis (e.g., roofline
 analysis, perfetto trace analysis, and GPU telemetry analysis).
 More specifically, you will find the omnitrace output stats under
-`$WORK/results/omnihub/$SLURM_JOB_ID/omnitrace-omnihub-output`, with which you may use
+`$WORK/results/omnihub/$SLURM_JOB_ID/omnitrace-omnihub-hf-output`, with which you may use
 [Perfetto](https://ui.perfetto.dev/) for interactive exploration. The omnistat GPU telemetry
 data can be found at `$WORK/results/omnihub/$SLURM_JOB_ID/omnistat`.
 
 #### Finetune with manual distributed execution, Omniperf
 ```
-sbatch slurm/apptainer/manual.slurm -p -M finetune
+./slurm/generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --partition mi2108x --num-nodes 2 --model Meta-Llama-2-7B-Chat-safetensors --stage finetune --runner manual --profile omniperf
 ```
 #### Infer via Torchrun, Omniperf 
 ```
-sbatch slurm/apptainer/torchrun.slurm -p -M infer
+./slurm/generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-2-7B-Chat-safetensors --stage infer --runner torchrun --profile omniperf
 ```
 #### Infer with manual distributed execution, Omnitrace and Omnistat
 ```
-sbatch slurm/apptainer/manual.slurm -t -s -M infer
+./slurm/generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-2-7B-Chat-safetensors --stage infer --runner manual --profile omnitrace omnistat
 ```
 #### Finetune with Torchrun, Omnitrace and Omnistat
 ```
-sbatch slurm/apptainer/torchrun.slurm -t -s -M finetune
+./slurm/generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-2-7B-Chat-safetensors --stage finetune --runner torchrun --profile omnitrace omnistat
 ```
 
 ### (WIP) Single-node Llama3 on Radha
@@ -97,50 +98,16 @@ We assume that this repo is available in the user's `HOME` directory hierarchy.
 
 #### Slurm batch script for Omniperf
 ```
-sbatch slurm/omniperf_inference.sh
+./slurm/generate-job --omnihub-dir $HOME/omnihub --cluster radha --model Meta-Llama-3-8B-Instruct-safetensors --stage infer --profile omniperf
 ```
 If the run was successful, you will find the omniperf output stats at
-`~/workloads`, with which you may do further analysis (e.g., roofline
-analysis).
+`$HOME/results/omnihub/$SLURM_JOB_ID/omniperf`, with which you may do further
+analysis (e.g., roofline analysis).
 
 #### Slurm batch script for Omnitrace
 ```
-sbatch slurm/omnitrace_inference.sh
+./slurm/generate-job --omnihub-dir $HOME/omnihub --cluster radha --model Meta-Llama-3-8B-Instruct-safetensors --stage infer --profile omnitrace
 ```
 If the run was successful, you will find the omnitrace output stats under
-`~/omnitrace-hf-inference-output`, with which you may use
-[Perfetto](https://ui.perfetto.dev/) for interactive exploration.
-
-#### Manual
-
-##### Interactively login
-```
-salloc -N 1
-```
-
-##### Build docker image
-```
-bash docker/build-docker-ubuntu-dev.sh
-```
-
-##### Run docker container
-```
-docker run -itd --rm --name omnihub \
-  -v $SHARED/projs/omnihub:/share -v $HOME:/host-home -w /host-home \
-  --cap-add=SYS_PTRACE --security-opt seccomp=unconfined \
-  --device=/dev/kfd --device=/dev/dri \
-  --ipc=host --shm-size 8G \
-  omnihub:latest
-```
-
-##### Exec inference task with omniperf
-```
-rel_path=`realpath -s --relative-to=$HOME $PWD`
-docker exec omnihub omniperf profile -n Meta_Llama_3_8b -- \
-  ${rel_path}/scripts/hf-inference.py -p /share/ml-models/Meta-Llama-3-8B-Instruct-safetensors
-```
-
-##### Stop/remove container
-```
-docker container rm omnihub -f
-```
+`$HOME/results/omnihub/$SLURM_JOB_ID/omnitrace-omnihub-hf-output`, with which
+you may use [Perfetto](https://ui.perfetto.dev/) for interactive exploration.

@@ -2,15 +2,20 @@
 name = "omnihub"
 version = "0.1.0"
 requires-python = ">=3.9"
+dynamic = ["dependencies"]
 
 [build-system]
 requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
 
 [project.optional-dependencies]
 developer = [
-    'black>=22.6.0',
-    'isort>=5.12.0',
-    'pre-commit',
+    "black>=22.6.0",
+    "isort>=5.12.0",
+    "pre-commit",
 ]
 
 [tool.isort]
