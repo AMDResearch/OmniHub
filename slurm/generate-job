@@ -136,7 +136,9 @@ torchrun_prefix = (
     " --redirect 3"
 )
 
-omniperf_prefix = "omniperf profile --path {results_dir}/omniperf --"
+omniperf_prefix = (
+    "omniperf profile --name omnihub --path {results_dir}/omniperf-\$SLURM_PROCID --"
+)
 
 omnitrace_args = ["--omnitrace"]
 omnitrace_environment = [
@@ -161,7 +163,10 @@ omnistat_post_execute = [
 ]
 
 apptainer_wrap = (
-    'srun apptainer run --rocm $shared_dir/apptainer/omnihub.sif -c "{base_command}"'
+    "srun apptainer run --rocm $shared_dir/apptainer/omnihub.sif"
+    ' -c "export ROCM_PATH=/opt/rocm; export ROCM_LIB=/opt/rocm/lib;'
+    " export LD_LIBRARY_PATH=/opt/rocm/lib:\$LD_LIBRARY_PATH;"
+    ' {base_command}"'
 )
 
 docker_pre_execute = [
@@ -191,6 +196,13 @@ head_host_commands = {
     "hpcfund": "$(ip -f inet addr show eth0 | awk '/inet / {print $2}' | cut -d/ -f1)",
     "radha": "$(dig +short $(hostname).amd.com)",
 }
+
+# Current Apptainer image built with ROCm 6.0.0 doesn't work with the default
+# rocm/6.1.2 in the host.
+hpcfund_pre_execute = [
+    "# Load compatible ROCm version",
+    "module load rocm/6.0.2",
+]
 
 
 # STEP 1. Basic validation of command line options.
@@ -271,6 +283,9 @@ if model not in models:
 # Default to using all GPUs in the partition.
 num_gpus_per_node = partitions[partition_name]["num-gpus"]
 num_tasks_per_node = num_gpus_per_node
+
+if args.cluster == "hpcfund":
+    pre_execute.extend(hpcfund_pre_execute)
 
 if platform == "docker":
     pre_execute.extend(docker_pre_execute)
