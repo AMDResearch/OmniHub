@@ -136,12 +136,7 @@ torchrun_prefix = (
     " --redirect 3"
 )
 
-omniperf_prefix = "omniperf profile --path {results_dir}/omniperf-\$SLURM_PROCID --"
-# Replicate old omniperf wrapper behavior. Need to confirm this is really needed.
-omniperf_environment = [
-    ("LD_LIBRARY_PATH", "$LD_LIBRARY_PATH:/opt/lib/rocm"),
-    ("ROCM_PATH", "/opt/rocm"),
-]
+omniperf_prefix = "omniperf profile --name omnihub --path {results_dir}/omniperf-\$SLURM_PROCID --"
 
 omnitrace_args = ["--omnitrace"]
 omnitrace_environment = [
@@ -165,8 +160,15 @@ omnistat_post_execute = [
     "$omnistat_dir/omnistat-usermode --stop",
 ]
 
+apptainer_pre_execute = [
+    "# Load compatible ROCm version",
+    "module load rocm/6.0.2",
+]
 apptainer_wrap = (
-    'srun apptainer run --rocm $shared_dir/apptainer/omnihub.sif -c "{base_command}"'
+    "srun apptainer run --rocm $shared_dir/apptainer/omnihub.sif"
+    ' -c "export ROCM_PATH=/opt/rocm; export ROCM_LIB=/opt/rocm/lib;'
+    " export LD_LIBRARY_PATH=/opt/rocm/lib:\$LD_LIBRARY_PATH;"
+    ' {base_command}"'
 )
 
 docker_pre_execute = [
@@ -277,6 +279,9 @@ if model not in models:
 num_gpus_per_node = partitions[partition_name]["num-gpus"]
 num_tasks_per_node = num_gpus_per_node
 
+if platform == "apptainer":
+    pre_execute.extend(apptainer_pre_execute)
+
 if platform == "docker":
     pre_execute.extend(docker_pre_execute)
 
@@ -289,7 +294,6 @@ if args.profile and "omnitrace" in args.profile:
     base_args.extend(omnitrace_args)
 
 if args.profile and "omniperf" in args.profile:
-    environment.extend(omniperf_environment)
     base_prefix.append(omniperf_prefix)
 
 # Single node execution without a runner should be executed without distributed
