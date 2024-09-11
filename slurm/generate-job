@@ -33,38 +33,51 @@ from string import Template
 
 import yaml
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--omnihub-dir", help="Path to Omnihub", type=str, required=True)
-parser.add_argument(
+parser = argparse.ArgumentParser(
+    description="Generate a SLURM job file to run Omnihub models",
+    prog="generate-job",
+    formatter_class=lambda prog: argparse.RawTextHelpFormatter(
+        prog, max_help_position=30
+    ),
+)
+parser._optionals.title = "Help"
+required_group = parser.add_argument_group("Required arguments")
+optional_group = parser.add_argument_group("Optional arguments")
+required_group.add_argument("--omnihub-dir", help="Path to Omnihub", type=str, required=True)
+optional_group.add_argument(
+    "--num-nodes", help="Number of nodes (default: 1)", type=int, default=1, metavar=""
+)
+optional_group.add_argument(
+    "--partition", help="Partition of the cluster", type=str, required=False, metavar="",
+)
+optional_group.add_argument("--model", help="Model to evaluate", type=str, required=False, metavar="")
+optional_group.add_argument(
     "--cluster",
-    help="Name of the cluster. Values: hpcfund (default), radha.",
+    help="Name of the cluster:\n\thpcfund (default)\n\tradha",
     type=str,
     default="hpcfund",
+    metavar="",
 )
-parser.add_argument(
-    "--partition", help="Partition of the cluster", type=str, required=False
-)
-parser.add_argument(
-    "--num-nodes", help="Number of nodes. Default value: 1.", type=int, default=1
-)
-parser.add_argument("--model", help="Model to evaluate", type=str, required=False)
-parser.add_argument(
+optional_group.add_argument(
     "--stage",
-    help="Stage to execute. Values: infer (default), finetune.",
+    help="Stage to execute:\n\tinfer (default)\n\tfinetune",
     type=str,
     default="infer",
+    metavar="",
 )
-parser.add_argument(
+optional_group.add_argument(
     "--runner",
-    help="Distributed runner. Required for multiple nodes. Values: manual, torchrun.",
+    help="Distributed runner. Required for multiple nodes.\n\tmanual\n\ttorchrun",
     type=str,
     required=False,
+    metavar="",
 )
-parser.add_argument(
+optional_group.add_argument(
     "--profile",
-    help="List of profilers to use. Values: omniperf, omnitrace, omnistat.",
+    help="List of profilers to choose from:\n\tomniperf\n\tomnitrace\n\tomnistat",
     type=str,
     nargs="+",
+    metavar="",
 )
 
 args = parser.parse_args()
@@ -211,7 +224,7 @@ if args.profile and not set(args.profile).issubset(profilers):
     sys.exit(1)
 
 if args.profile and set(args.profile).issuperset({"omniperf", "omnitrace"}):
-    print(f"Incompatible profilers: omniperf and omnitrace")
+    print(f"Incompatible profiler combination: omniperf and omnitrace")
     sys.exit(1)
 
 
