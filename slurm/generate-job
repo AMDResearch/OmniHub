@@ -136,7 +136,12 @@ torchrun_prefix = (
     " --redirect 3"
 )
 
-omniperf_prefix = "omniperf profile --path {results_dir}/omniperf --"
+omniperf_prefix = "omniperf profile --path {results_dir}/omniperf-\$SLURM_PROCID --"
+# Replicate old omniperf wrapper behavior. Need to confirm this is really needed.
+omniperf_environment = [
+    ("LD_LIBRARY_PATH", "$LD_LIBRARY_PATH:/opt/lib/rocm"),
+    ("ROCM_PATH", "/opt/rocm"),
+]
 
 omnitrace_args = ["--omnitrace"]
 omnitrace_environment = [
@@ -284,6 +289,7 @@ if args.profile and "omnitrace" in args.profile:
     base_args.extend(omnitrace_args)
 
 if args.profile and "omniperf" in args.profile:
+    environment.extend(omniperf_environment)
     base_prefix.append(omniperf_prefix)
 
 # Single node execution without a runner should be executed without distributed
