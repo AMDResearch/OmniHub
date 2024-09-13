@@ -24,16 +24,39 @@ fi
 mkdir -p $results_dir
 cd $results_dir
 
-echo "Omnihub directory: $omnihub_dir"
-echo "Shared directory: $shared_dir"
-echo "Results directory: $results_dir"
-echo "Model: $model"
-echo "Model directory: $model_dir"
-echo "Head node: $head_host"
-echo "Head port: $head_port"
-echo "Number nodes: $num_nodes"
-echo "Number of GPUs per node: $num_gpus_per_node"
-echo "Number of tasks per node: $num_tasks_per_node"
+# Store a copy of the SLURM job script.
+cp $0 $results_dir/job.sh
+
+# Store job configuration in YAML format as part of the results for easier
+# parsing and post-processing.
+cat <<EOF > $results_dir/job.yaml
+job:
+  id: $SLURM_JOBID
+  user: $USER
+  timestamp: $(date +%s)
+  cluster: $$cluster
+  partition: $$partition
+  num-nodes: $$num_nodes
+  num-gpus-per-node: $$num_gpus_per_node
+  num-tasks-per-node: $$num_tasks_per_node
+  nodes: [$SLURM_NODELIST]
+  container-platform: $$platform
+  omnihub-directory: $$omnihub_dir
+  omnihub-version: $(cd $omnihub_dir && git rev-parse --short HEAD)
+  runner: $$runner
+  profilers: [$$profilers]
+  model: $$model
+  model-directory: $$model_dir
+  head-node: $(hostname)
+  head-address: $$head_host
+  head-port: $$head_port
+EOF
+
+echo "Job configuration:"
+tail -n +2 $results_dir/job.yaml
+
+echo "Results directory:"
+echo "  $results_dir"
 
 $pre_execute_commands
 

@@ -338,6 +338,12 @@ variables = [
     ("results_dir", f"{results_dir}"),
     ("model", f"{model}"),
     ("model_dir", f"{models_dir}/{model}"),
+    ("cluster", f"{args.cluster}"),
+    ("partition", f"{partition_name}"),
+    ("platform", f"{platform}"),
+    ("runner", f"{args.runner}" if args.runner else ""),
+    ("profilers", f"{','.join(args.profile)}" if args.profile else ""),
+    ("num_nodes", f"{num_nodes}"),
     ("num_gpus_per_node", f"{num_gpus_per_node}"),
     ("num_tasks_per_node", f"{num_tasks_per_node}"),
 ]
