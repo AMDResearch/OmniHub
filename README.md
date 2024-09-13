@@ -126,7 +126,5 @@ you may use [Perfetto](https://ui.perfetto.dev/) for interactive exploration.
 If you want to contribute to OmniHub, make sure you read [this document](docs/developer.md) for developer pre-requisites.
 
 ## Contact
-- Ashwin Aji (ashwin.aji@amd.com)
-- Jorda Polo (jorda.polo@amd.com)
-- Cole Ramos (cole.ramos@amd.com)
-- Jose Santos (jose.santos@amd.com)
+- Email: dl.RAD-omnihub@amd.com
+- [GitHub Discussions](https://github.com/AARInternal/omnihub/discussions)
