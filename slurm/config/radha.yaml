@@ -3,7 +3,9 @@ cluster:
   models-dir: /home/shared/projs/omnihub/ml-models
   shared-dir: /home/shared/projs/omnihub
   results-dir: $HOME/results/omnihub/$SLURM_JOB_ID
-  container-platform: docker
+  container-platforms: 
+    - apptainer
+    - docker
   subsets:
     - partition: radhadefault
       gpu: mi210

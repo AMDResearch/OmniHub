@@ -52,6 +52,7 @@ the cluster.
 | `--partition`   |                                     | Partition of the cluster; defaults to first partition in the cluster configuration file. |
 | `--num-nodes`   |                                     | Number of nodes to allocate for the execution.                                           |
 | `--model`       |                                     | Model to evaluate; defaults to first model in the cluster configuration file.            |
+| `--platform`    | **`apptainer`**, `docker`           | Container platform for the execution; supported platforms in cluster configuration file. |
 | `--stage`       | **`infer`**, `finetune`             | ML lifecycle stage.                                                                      |
 | `--runner`      | `manual`, `torchrun`                | Distributed runner. Required for multi-node executions.                                  |
 | `--profile`     | `omniperf`, `omnitrace`, `omnistat` | Space-separated list of profilers to use.                                                |

@@ -52,6 +52,14 @@ optional_group.add_argument(
 )
 optional_group.add_argument("--model", help="Model to evaluate", type=str, required=False, metavar="")
 optional_group.add_argument(
+    "--platform", 
+    help="Container platform to execute in:\n\tapptainer (default)\n\tdocker", 
+    type=str, 
+    required=False, 
+    default="apptainer",
+    metavar="",
+)
+optional_group.add_argument(
     "--cluster",
     help="Name of the cluster:\n\thpcfund (default)\n\tradha",
     type=str,
@@ -245,15 +253,22 @@ if args.profile and set(args.profile).issuperset({"omniperf", "omnitrace"}):
 with open(cluster_file, "r") as f:
     cluster = yaml.safe_load(f)["cluster"]
 
-platform = cluster["container-platform"]
+container_platforms = cluster["container-platforms"]
 models_dir = cluster["models-dir"]
 shared_dir = cluster["shared-dir"]
 results_dir = cluster["results-dir"]
 partitions = {x["partition"]: x for x in cluster["subsets"]}
 models = cluster["models"]
 
-if platform not in platforms:
-    print(f"Unsupported container platform: {platform}")
+cluster_name = cluster["name"]
+if not set(container_platforms).issubset(set(platforms)):
+    print(f"Unsupported container_platforms {set(container_platforms) - set(platforms)} in {cluster_file}")
+    sys.exit(1)
+
+# If platform argument is not present, default to first container platform in the cluster.
+platform = args.platform if args.platform else container_platforms[0]
+if platform not in container_platforms:
+    print(f"Unsupported platform {platform} in the cluster {cluster_name}")
     sys.exit(1)
 
 # If partition argument is not present, default to first partition in the cluster.
