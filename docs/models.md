@@ -3,7 +3,7 @@ All ML models are stored on the following clusters and the corresponding locatio
 
 - `radha:/home/shared/projs/omnihub/ml-models`
 - `hpcfund:/work1/models/amd`
- 
+
 The models are organized as a flat structure with an approximate naming convention like `<org>-<model>-<params>-<task>-<format>`.
 
 ## Use case: Llama
@@ -26,4 +26,4 @@ Meta-Llama-3-70B-safetensors
 ## HuggingFace and Safetensors
 Model directories with the `-safetensors` suffix indicate that the models have been converted to the HuggingFace-compatible "Safetensors" format.
 The safetensors models can only be used by HuggingFace libraries (e.g., `transformers`)
-All the model directories also contain the original `.pth` model as well, which may be used by native PT libraries.
+Most of the model directories also contain the original `.pth` model as well, which may be used by native PT libraries.
