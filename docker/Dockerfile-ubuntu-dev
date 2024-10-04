@@ -9,12 +9,12 @@
 # host-mounted directories, the `fix-host-owner' script can be used to make sure any
 # directory is owned by the same user running the container.
 
-FROM rocm/dev-ubuntu-22.04:6.0-complete
+FROM rocm/dev-ubuntu-22.04:6.2-complete
 
 ARG CONDA_INSTALLER=https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 ARG OMNIPERF_TARBALL=https://github.com/ROCm/omniperf/releases/download/v2.0.0-RC1/omniperf-2.0.0-RC1.tar.gz
-ARG OMNITRACE_INSTALLER=https://github.com/ROCm/omnitrace/releases/download/v1.11.4/omnitrace-1.11.4-ubuntu-22.04-ROCm-60000-PAPI-OMPT-Python3.sh
-ARG PYTORCH_URL=https://download.pytorch.org/whl/rocm6.0
+ARG OMNITRACE_INSTALLER=https://github.com/ROCm/omnitrace/releases/download/v1.11.4/omnitrace-1.11.4-ubuntu-22.04-ROCm-60200-PAPI-OMPT-Python3.sh
+ARG PYTORCH_URL=https://download.pytorch.org/whl/rocm6.1
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -52,29 +52,7 @@ RUN conda update -y conda && \
 
 RUN pip install torch torchvision torchaudio --index-url $PYTORCH_URL
 
-RUN git clone https://github.com/ROCm/bitsandbytes.git && \
-    cd bitsandbytes && \
-    git checkout rocm_enabled && \
-    pip install -U pip && \
-    pip install -r requirements-dev.txt && \
-    cmake -DCOMPUTE_BACKEND=hip -DBNB_ROCM_ARCH="gfx90a" -S . && \
-    make && \
-    pip install . && \
-    cd && \
-    rm -rf /tmp/bitsandbytes
-
-RUN git clone https://github.com/meta-llama/llama-recipes.git && \
-    cd llama-recipes && \
-    git checkout v0.0.3 && \
-    pip install -U pip setuptools && \
-    pip install -e . && \
-    cd && \
-    rm -rf /tmp/llama-recipes
-
-COPY docker/requirements.txt /omnihub/requirements.txt
-RUN pip install -r /omnihub/requirements.txt && \
-    rm -f /omnihub/requirements.txt
-
+WORKDIR /omnihub
 RUN wget --quiet $OMNIPERF_TARBALL -O /tmp/omniperf.tar.gz && \
     tar xfz /tmp/omniperf.tar.gz -C /tmp && \
     omniperf_basedir=$(basename $OMNIPERF_TARBALL .tar.gz) && \
@@ -89,6 +67,7 @@ RUN wget --quiet $OMNIPERF_TARBALL -O /tmp/omniperf.tar.gz && \
     rm -f /tmp/omniperf.tar.gz && \
     rm -rf /tmp/$omniperf_basedir
 
+WORKDIR /omnihub
 RUN wget --quiet $OMNITRACE_INSTALLER -O /tmp/omnitrace-install.sh && \
     mkdir $OMNITRACE_DIR && \
     cd $OMNITRACE_DIR && \
@@ -97,3 +76,83 @@ RUN wget --quiet $OMNITRACE_INSTALLER -O /tmp/omnitrace-install.sh && \
     rm -f /tmp/omnitrace-install.sh
 
 COPY docker/fix-host-owner.sh /usr/local/bin/fix-host-owner
+
+# Currently we support MI210/MI250/MI300
+ENV PYTORCH_ROCM_ARCH="gfx90a;gfx942"
+
+## Hugging Face
+WORKDIR /omnihub
+RUN git clone https://github.com/ROCm/bitsandbytes.git && \
+    cd bitsandbytes && \
+    git checkout rocm_enabled && \
+    pip install -U pip && \
+    pip install -r requirements-dev.txt && \
+    cmake -DCOMPUTE_BACKEND=hip -DBNB_ROCM_ARCH=${PYTORCH_ROCM_ARCH} -S . && \
+    make && \
+    pip install . && \
+    cd && \
+    rm -rf /omnihub/bitsandbytes
+
+# FIXME(aaji): Llama-recipes and vLLM dependencies are somewhat off, so
+# commenting out llama-recipes until we feel that we really need it
+# WORKDIR /omnihub
+# RUN git clone https://github.com/meta-llama/llama-recipes.git && \
+#     cd llama-recipes && \
+#     git checkout v0.0.3 && \
+#     pip install -U pip setuptools && \
+#     pip install -e . && \
+#     cd && \
+#     rm -rf /omnihub/llama-recipes
+
+COPY docker/requirements.txt /omnihub/requirements.txt
+RUN pip install -r /omnihub/requirements.txt && \
+    rm -f /omnihub/requirements.txt
+
+## vLLM
+RUN wget --quiet https://github.com/ROCm/flash-attention/releases/download/v2.5.9post1-cktile-vllm/flash_attn-2.5.9.post1-cp39-cp39-linux_x86_64.whl -P /tmp && \
+    pip install /tmp/flash_attn-2.5.9.post1-cp39-cp39-linux_x86_64.whl && \
+    rm -f /tmp/flash_attn-2.5.9.post1-cp39-cp39-linux_x86_64.whl
+# # Install vLLM
+# TODO/FIXME (aaji) Below env vars are set based on MLSE's dockerfile:
+# https://github.com/ROCm/vllm/blob/48c0cb4f2f4d8aa09c80a90faea72cd8d093a878/Dockerfile.rocm#L268-L272
+# The hope is that we do not have to explicitly set these when we build apptainer images from pre-baked docker images
+# from dockerhub or MLSE internal artifactory
+ENV RAY_EXPERIMENTAL_NOSET_ROCR_VISIBLE_DEVICES=1
+ENV TOKENIZERS_PARALLELISM=false
+ENV HIP_FORCE_DEV_KERNARG=1
+# Make sure punica kernels are built (for LoRA)
+# ENV VLLM_INSTALL_PUNICA_KERNELS=1
+# # Apply the patch to ROCM 6.1 (requires root permission)
+WORKDIR /omnihub
+RUN git clone https://github.com/ROCm/vllm.git && \
+    cd vllm && \
+    git checkout v0.6.0 && \
+    pip install numba scipy && \
+    pip install "numpy<2" && \
+    pip install "cmake>3.26" && \
+    pip install -r requirements-rocm.txt && \
+    pip install -U openai && \
+    wget --quiet -N https://github.com/ROCm/vllm/raw/v0.6.1_rocm/rocm_patch/libamdhip64.so.6 -P /opt/rocm/lib && \
+    rm -f "$(python3 -c 'import torch; print(torch.__path__[0])')"/lib/libamdhip64.so*
+
+WORKDIR /omnihub
+RUN mkdir /vllm && \
+    cd vllm && \
+    python3 setup.py clean --all && python3 setup.py bdist_wheel --dist-dir=/vllm
+# Build gradlib
+# FIXME(aaji): gradlib is needed in the ROCm-optimized branch of vLLM, but that branch is currently buggy for tensor parallel inference; commenting out for now.
+# WORKDIR /omnihub
+# RUN cd vllm/gradlib && \
+#     python3 setup.py clean --all && python3 setup.py bdist_wheel --dist-dir=/vllm
+
+# Build amdsmi wheel always (vLLM dependency).
+RUN cd /opt/rocm/share/amd_smi \
+    && python3 -m pip wheel . --wheel-dir=/vllm
+
+RUN cd /vllm && \
+    pip install *.whl && \
+    rm -rf /vllm
+
+# Ensure consistent entry point for both docker and the converted apptainer image
+WORKDIR /omnihub
+ENTRYPOINT /bin/bash

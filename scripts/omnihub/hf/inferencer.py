@@ -3,6 +3,13 @@ from accelerate import DistributedType, PartialState
 from transformers import pipeline
 
 
+def print_outputs(prompt, outputs):
+    for output in outputs:
+        generated_text = output["generated_text"]
+        print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
+    print("-" * 80)
+
+
 class Inferencer:
     def __init__(self, args):
         self.pipe = pipeline(
@@ -32,12 +39,12 @@ class Inferencer:
             {
                 "role": "user",
                 "content": """Generate an approximately fifteen-word sentence
-                                        that describes all this data:
-                                        Midsummer House eatType restaurant;
-                                        Midsummer House food Chinese;
-                                        Midsummer House priceRange moderate;
-                                        Midsummer House customer rating 3 out of 5;
-                                        Midsummer House near All Bar One""",
+                                that describes all this data:
+                                Midsummer House eatType restaurant;
+                                Midsummer House food Chinese;
+                                Midsummer House priceRange moderate;
+                                Midsummer House customer rating 3 out of 5;
+                                Midsummer House near All Bar One""",
             },
         ]
 
@@ -58,9 +65,9 @@ class Inferencer:
             top_p=0.6,
         )
 
-        print(outputs[0]["generated_text"][len(prompt) :])
+        print_outputs(prompt, outputs)
 
         # answer an open question
         prompt = "What is a large language model? Explain it to a 10 year old."
         outputs = pipe(f"<s>[INST] {prompt} [/INST]", truncation=True)
-        print(outputs[0]["generated_text"])
+        print_outputs(prompt, outputs)

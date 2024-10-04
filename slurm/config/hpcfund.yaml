@@ -3,7 +3,7 @@ cluster:
   models-dir: /work1/models/amd
   shared-dir: /work1/amd/omnihub
   results-dir: $WORK/results/omnihub/$SLURM_JOB_ID
-  container-platforms: 
+  container-platforms:
     - apptainer
   subsets:
     - partition: mi2104x
@@ -14,6 +14,10 @@ cluster:
       gpu: mi250
       num-gpus: 8
       num-nodes: 8
+    - partition: mi3008x
+      gpu: mi300
+      num-gpus: 8
+      num-nodes: 1
     - partition: mi1008x
       gpu: mi100
       num-gpus: 8

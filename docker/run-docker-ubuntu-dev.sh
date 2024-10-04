@@ -1,6 +1,7 @@
 docker run -it --rm --name omnihub \
-  -v $SHARED/projs/omnihub:/share -v $HOME:/host-home -w /host-home \
+  -v /home/shared/projs/omnihub:/share -v $HOME:/host-home -w /host-home \
   --cap-add=SYS_PTRACE --security-opt seccomp=unconfined \
   --device=/dev/kfd --device=/dev/dri \
+  --network=host \
   --ipc=host --shm-size 8G \
-  omnihub:latest
+  docker-virtual.atlartifactory.amd.com/amd/omnihub/radha:latest

@@ -8,7 +8,7 @@ The analysis of each workload may be done using available tools such as omniperf
 
 We have currently tested the scripts in this repository to work with the following ML models, stages, systems, and tools. We have
 ML models copied locally and pre-built Docker and Apptainer images pre-installed and customized with the necessary tools on the below systems for your ready consumption.
-We have used [Hugging Face](https://huggingface.co/) API so far in our scripts, but support for other ML frameworks could be added (talk to [us](#contact)).
+We have used [Hugging Face](https://huggingface.co/) and [vLLM](https://github.com/vllm-project/vllm) API so far in our scripts, but support for other ML frameworks could be added (talk to [us](#contact)).
 Our scripts are very user-friendly where you can mix-and-match the models, tasks, and tools of interest with simple command line arguments.
 
 **ML Models**
@@ -21,6 +21,10 @@ See [here](docs/models.md) for more details on the available ML models on Radha 
 **Stages**
 - Infer
 - Finetune
+
+**Frameworks**
+- Hugging Face: inference and finetuning
+- vLLM: inference
 
 **Systems**
 - HPC Fund: multi-node, multi-GPU; Apptainer
@@ -61,6 +65,7 @@ the cluster.
 | `--model`       |                                     | Model to evaluate; defaults to first model in the cluster configuration file.            |
 | `--platform`    | **`apptainer`**, `docker`           | Container platform for the execution; supported platforms in cluster configuration file. |
 | `--stage`       | **`infer`**, `finetune`             | ML lifecycle stage.                                                                      |
+| `--framework`   | **`hf`**, `vllm`                    | ML framework of choice.                                                                  |
 | `--runner`      | `manual`, `torchrun`                | Distributed runner. Required for multi-node executions.                                  |
 | `--profile`     | `omniperf`, `omnitrace`, `omnistat` | Space-separated list of profilers to use.                                                |
 

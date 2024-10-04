@@ -43,19 +43,27 @@ parser = argparse.ArgumentParser(
 parser._optionals.title = "Help"
 required_group = parser.add_argument_group("Required arguments")
 optional_group = parser.add_argument_group("Optional arguments")
-required_group.add_argument("--omnihub-dir", help="Path to Omnihub", type=str, required=True)
+required_group.add_argument(
+    "--omnihub-dir", help="Path to Omnihub", type=str, required=True
+)
 optional_group.add_argument(
     "--num-nodes", help="Number of nodes (default: 1)", type=int, default=1, metavar=""
 )
 optional_group.add_argument(
-    "--partition", help="Partition of the cluster", type=str, required=False, metavar="",
+    "--partition",
+    help="Partition of the cluster",
+    type=str,
+    required=False,
+    metavar="",
 )
-optional_group.add_argument("--model", help="Model to evaluate", type=str, required=False, metavar="")
 optional_group.add_argument(
-    "--platform", 
-    help="Container platform to execute in:\n\tapptainer (default)\n\tdocker", 
-    type=str, 
-    required=False, 
+    "--model", help="Model to evaluate", type=str, required=False, metavar=""
+)
+optional_group.add_argument(
+    "--platform",
+    help="Container platform to execute in:\n\tapptainer (default)\n\tdocker",
+    type=str,
+    required=False,
     default="apptainer",
     metavar="",
 )
@@ -81,6 +89,13 @@ optional_group.add_argument(
     metavar="",
 )
 optional_group.add_argument(
+    "--framework",
+    help="ML framework of choice. \n\thf (default: Hugging Face)\n\tvllm",
+    type=str,
+    default="hf",
+    metavar="",
+)
+optional_group.add_argument(
     "--profile",
     help="List of profilers to choose from:\n\tomniperf\n\tomnitrace\n\tomnistat",
     type=str,
@@ -98,8 +113,8 @@ cluster_file = f"{config_dir}/{args.cluster}.yaml"
 
 # Omnihub scripts for each stage.
 scripts = {
-    "infer": "omnihub-hf.py --mode infer",
-    "finetune": "omnihub-hf.py --mode finetune",
+    "infer": "omnihub.py --mode infer",
+    "finetune": "omnihub.py --mode finetune",
 }
 
 # Sets of options supported by the generator.
@@ -107,6 +122,7 @@ stages = set(scripts.keys())
 platforms = {"apptainer", "docker"}
 runners = {"manual", "torchrun"}
 profilers = {"omniperf", "omnitrace", "omnistat"}
+frameworks = {"hf", "vllm"}
 
 # Lists of commands to execute.
 pre_execute = []
@@ -171,16 +187,12 @@ omnistat_post_execute = [
 ]
 
 apptainer_wrap = (
-    "srun apptainer run --rocm $shared_dir/apptainer/omnihub.sif"
+    "srun apptainer run $shared_dir/apptainer/omnihub.sif"
     ' -c "export ROCM_PATH=/opt/rocm; export ROCM_LIB=/opt/rocm/lib;'
     " export LD_LIBRARY_PATH=/opt/rocm/lib:\$LD_LIBRARY_PATH;"
     ' {base_command}"'
 )
 
-docker_pre_execute = [
-    "# Build docker image",
-    "srun --ntasks-per-node 1 --chdir $omnihub_dir bash docker/build-docker-ubuntu-dev.sh",
-]
 docker_wrap = (
     'srun bash -c "docker run --rm {docker_args}'
     " -v $omnihub_dir:$docker_omnihub_dir:ro"
@@ -192,7 +204,7 @@ docker_wrap = (
     " --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     " --device=/dev/kfd --device=/dev/dri"
     " --network=host --ipc=host --shm-size 8G"
-    " omnihub:latest"
+    " docker-virtual.atlartifactory.amd.com/amd/omnihub/radha:latest"
     ' bash -c \\"{base_command}; fix-host-owner $docker_results_dir\\""'
 )
 
@@ -204,14 +216,6 @@ head_host_commands = {
     "hpcfund": "$(ip -f inet addr show eth0 | awk '/inet / {print $2}' | cut -d/ -f1)",
     "radha": "$(dig +short $(hostname).amd.com)",
 }
-
-# Current Apptainer image built with ROCm 6.0.0 doesn't work with the default
-# rocm/6.1.2 in the host.
-hpcfund_pre_execute = [
-    "# Load compatible ROCm version",
-    "module load rocm/6.0.2",
-]
-
 
 # STEP 1. Basic validation of command line options.
 
@@ -233,6 +237,10 @@ if args.stage not in stages:
 
 if args.runner and args.runner not in runners:
     print(f"Unsupported distributed runner: {args.runner}")
+    sys.exit(1)
+
+if args.framework and args.framework not in frameworks:
+    print(f"Unsupported framework: {args.framework}")
     sys.exit(1)
 
 if args.num_nodes > 1 and not args.runner:
@@ -262,7 +270,9 @@ models = cluster["models"]
 
 cluster_name = cluster["name"]
 if not set(container_platforms).issubset(set(platforms)):
-    print(f"Unsupported container_platforms {set(container_platforms) - set(platforms)} in {cluster_file}")
+    print(
+        f"Unsupported container_platforms {set(container_platforms) - set(platforms)} in {cluster_file}"
+    )
     sys.exit(1)
 
 # If platform argument is not present, default to first container platform in the cluster.
@@ -299,12 +309,6 @@ if model not in models:
 num_gpus_per_node = partitions[partition_name]["num-gpus"]
 num_tasks_per_node = num_gpus_per_node
 
-if args.cluster == "hpcfund":
-    pre_execute.extend(hpcfund_pre_execute)
-
-if platform == "docker":
-    pre_execute.extend(docker_pre_execute)
-
 if args.profile and "omnistat" in args.profile:
     pre_execute.extend(omnistat_pre_execute)
     post_execute.extend(omnistat_post_execute)
@@ -328,6 +332,9 @@ if args.runner == "torchrun":
     num_tasks_per_node = 1
     base_prefix.append(torchrun_prefix)
 
+# Framework-specific configuration.
+base_args.append(f"--framework {args.framework}" if args.framework else "")
+
 # Main set of variables as expected in the host context. We assume Apptainer
 # shares the same context as the host, so these are also used to format
 # Apptainer executions.
@@ -341,6 +348,8 @@ variables = [
     ("cluster", f"{args.cluster}"),
     ("partition", f"{partition_name}"),
     ("platform", f"{platform}"),
+    ("framework", f"{args.framework}"),
+    ("stage", f"{args.stage}"),
     ("runner", f"{args.runner}" if args.runner else ""),
     ("profilers", f"{','.join(args.profile)}" if args.profile else ""),
     ("num_nodes", f"{num_nodes}"),

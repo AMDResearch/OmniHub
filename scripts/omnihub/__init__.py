@@ -5,12 +5,21 @@ from contextlib import contextmanager
 from enum import Enum
 
 from omnihub import distributed as dist
-from omnihub import finetuner, inferencer, tracer
+from omnihub import tracer
 
 
 class Mode(Enum):
     Infer = "infer"
     FineTune = "finetune"
+
+    def __str__(self):
+        return self.value
+
+
+class Framework(Enum):
+    HF = "hf"
+    VLLM = "vllm"
+    PYTORCH = "pytorch"
 
     def __str__(self):
         return self.value
@@ -52,6 +61,16 @@ def setup_parser():
 
     # Tools
     parser.add_argument("--omnitrace", action="store_true", help="Enable omnitrace")
+
+    # Frameworks
+    parser.add_argument(
+        "-f",
+        "--framework",
+        type=Framework,
+        help="ML framework of choice",
+        choices=list(Framework),
+        default=Framework.HF,
+    )
     return parser
 
 
@@ -76,6 +95,14 @@ class Omnihub:
         self.dist = dist.Distributed(args=self.args)
 
     def run(self):
+        if self.args.framework == Framework.HF:
+            from omnihub.hf import finetuner, inferencer
+        elif self.args.framework == Framework.VLLM:
+            from omnihub.vllm import inferencer
+        else:
+            print(f"Unspported framework: {self.args.framework}")
+            sys.exit(1)
+
         if self.args.mode == Mode.FineTune:
             ft = finetuner.FineTuner(args=self.args)
             with tracer.profile(use_omnitrace=self.args.omnitrace):

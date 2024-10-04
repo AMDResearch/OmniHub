@@ -19,5 +19,5 @@ Images were built using the command `apptainer build /path/to/omnihub.sif apptai
 
 To interactively run the container (e.g., on the HPC Fund cluster):
 ```
-apptainer run --rocm /work1/amd/omnihub/apptainer/omnihub.sif
+apptainer run /work1/amd/omnihub/apptainer/omnihub.sif
 ```
