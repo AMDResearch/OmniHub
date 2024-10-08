@@ -39,8 +39,8 @@ See [here](docs/models.md) for more details on the available ML models on Radha 
 
 Our test clusters use SLURM for job submission and management. Researchers may want to create several SLURM job scripts to experiment with
 different combinations of ML model, stage, container platform, number of nodes, and profiling and analytical tools.
-To this end, OmniHub provides a tool called [`generate-job`](slurm/generate-job) to easily generate job scripts that are tailored to be executed in a particular
-environment. The `generate-job` tool takes the target cluster characteristics
+To this end, OmniHub provides a tool called [`omnihub-generate-job`](omnihub-generate-job) to easily generate job scripts that are tailored to be executed in a particular
+environment. The `omnihub-generate-job` tool takes the target cluster characteristics
 into consideration as well as user-defined options like the version
 of the model, the scale of the execution, or the kind of performance data that
 needs to be collected. If the target system does not use SLURM, one could still experiment with this tool
@@ -48,13 +48,13 @@ to generate reference job scripts and modify application launch commands as need
 
 In its most basic form, SLURM job script generation and job execution work as follows:
 ```console
-./slurm/generate-job --omnihub-dir $HOME/omnihub > infer-single.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub > infer-single.slurm
 sbatch infer-single.slurm
 ```
 Where `--omnihub-dir` points to your working copy of the OmniHub repository in
 the cluster.
 
-### List of Command Line Options for `generate-job`
+### List of Command Line Options for `omnihub-generate-job`
 
 | Flag            | Options                             | Description                                                                              |
 | :------------:  | :--------------------------------:  | :--------------------------------------------------------------------------------------  |
@@ -86,22 +86,22 @@ Change `$HOME/omnihub` to the installed location of OmniHub in your environment.
 
 #### Infer Llama3.1 (405B) with a single-node execution on MI250s with Omnitrace and Omnistat
 ```
-./slurm/generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --model Meta-Llama-3.1-405B-Instruct-safetensors --stage infer --profile omnitrace omnistat > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --model Meta-Llama-3.1-405B-Instruct-safetensors --stage infer --profile omnitrace omnistat > job.slurm
 sbatch job.slurm
 ```
 #### Finetune Llama3.1 (8B) with manual distributed execution on MI210s with Omniperf
 ```
-./slurm/generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-3.1-8B-Instruct-safetensors --stage finetune --runner manual --profile omniperf > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-3.1-8B-Instruct-safetensors --stage finetune --runner manual --profile omniperf > job.slurm
 sbatch job.slurm
 ```
 #### Infer Llama3.1 (8B) via Torchrun on MI210s with Omniperf
 ```
-./slurm/generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-3.1-8B-Instruct-safetensors --stage infer --runner torchrun --profile omniperf > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-3.1-8B-Instruct-safetensors --stage infer --runner torchrun --profile omniperf > job.slurm
 sbatch job.slurm
 ```
 #### Finetune Llama3.1 (8B) with Torchrun on MI210s with Omnitrace and Omnistat
 ```
-./slurm/generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-3.1-8B-Instruct-safetensors --stage finetune --runner torchrun --profile omnitrace omnistat > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-3.1-8B-Instruct-safetensors --stage finetune --runner torchrun --profile omnitrace omnistat > job.slurm
 sbatch job.slurm
 ```
 
@@ -111,7 +111,7 @@ Below are some example steps you can follow to run Llama3 (8B Instruct) model on
 
 #### Infer on MI210s with Omniperf
 ```
-./slurm/generate-job --omnihub-dir $HOME/omnihub --cluster radha --model Meta-Llama-3-8B-Instruct-safetensors --stage infer --profile omniperf > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster radha --model Meta-Llama-3-8B-Instruct-safetensors --stage infer --profile omniperf > job.slurm
 sbatch job.slurm
 ```
 If the run was successful, you will find the omniperf output stats at
@@ -120,7 +120,7 @@ analysis (e.g., roofline analysis).
 
 #### Infer on MI210s with Omnitrace
 ```
-./slurm/generate-job --omnihub-dir $HOME/omnihub --cluster radha --model Meta-Llama-3-8B-Instruct-safetensors --stage infer --profile omnitrace > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster radha --model Meta-Llama-3-8B-Instruct-safetensors --stage infer --profile omnitrace > job.slurm
 sbatch job.slurm
 ```
 If the run was successful, you will find the omnitrace output stats under
