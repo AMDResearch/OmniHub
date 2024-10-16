@@ -7,7 +7,8 @@ and different model granularities (kernel, op, layer, entire model) and model ty
 The analysis of each workload may be done using available tools such as omniperf, omnitrace, rocprof, and so on.
 
 We have currently tested the scripts in this repository to work with the following ML models, stages, systems, and tools. We have
-ML models copied locally and pre-built Docker and Apptainer images pre-installed and customized with the necessary tools on the below systems for your ready consumption.
+ML models copied locally and pre-built [Docker and Apptainer images](docs/images.md) pre-installed and customized with the necessary 
+tools on the below systems for your ready consumption. 
 We have used [Hugging Face](https://huggingface.co/) and [vLLM](https://github.com/vllm-project/vllm) API so far in our scripts, but support for other ML frameworks could be added (talk to [us](#contact)).
 Our scripts are very user-friendly where you can mix-and-match the models, tasks, and tools of interest with simple command line arguments.
 
