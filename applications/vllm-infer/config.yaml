@@ -1,0 +1,2 @@
+entrypoint: infer.py
+tensor-parallel-size: 1

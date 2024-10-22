@@ -4,6 +4,19 @@ import sys
 from contextlib import ExitStack
 
 
+class Tracers:
+    def __init__(self):
+        self.use_omnitrace = False
+
+    def enable_omnitrace(self):
+        self.use_omnitrace = True
+
+    # Add other tools in future
+
+
+tracers = Tracers()
+
+
 def get_omnitrace_cm():
     # Attempt to add the omnitrace python module, which is installed in
     # /opt/omnitrace in the Docker image. To run outside of the Docker with
@@ -19,9 +32,9 @@ def get_omnitrace_cm():
 
 
 @contextlib.contextmanager
-def profile(use_omnitrace: bool = False):
+def profile():
     with ExitStack() as stack:
-        if use_omnitrace:
+        if tracers.use_omnitrace:
             # enter omnitrace context manager
             stack.enter_context(get_omnitrace_cm())
         # enter other context managers in future if necessary

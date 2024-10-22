@@ -1,5 +1,6 @@
 import os
 import sys
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 
 import bitsandbytes as bnb
 import torch
@@ -8,6 +9,8 @@ from datasets import load_dataset
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig, TrainingArguments
 from trl import SFTTrainer
+
+import omnihub
 
 
 def find_all_linear_names(model):
@@ -21,13 +24,40 @@ def find_all_linear_names(model):
 
 
 class FineTuner:
-    def __init__(self, args):
-        model_path = args.model_dir
+    def __init__(self, custom_args) -> None:
+        parser = ArgumentParser(
+            description="Inference using a Hugging Face model",
+            formatter_class=ArgumentDefaultsHelpFormatter,
+        )
+        parser.add_argument(
+            "-m", "--model-dir", help="Path to the model", type=str, required=True
+        )
+        parser.add_argument(
+            "-o", "--output-dir", help="Path to store output", type=str, default="."
+        )
+
+        self.args = parser.parse_args(args=custom_args)
+
+        if not os.path.exists(self.args.model_dir) or not os.path.isdir(
+            self.args.model_dir
+        ):
+            print("Model path does not exist")
+            parser.print_help()
+            sys.exit(1)
+
+        if not os.path.exists(self.args.output_dir) or not os.path.isdir(
+            self.args.output_dir
+        ):
+            print("Output path does not exist")
+            parser.print_help()
+            sys.exit(1)
+
+        model_path = self.args.model_dir
 
         # New instruction dataset
         guanaco_dataset = "mlabonne/guanaco-llama2-1k"
 
-        orig_model_name = os.path.split(os.path.dirname(args.model_dir))[-1]
+        orig_model_name = os.path.split(os.path.dirname(self.args.model_dir))[-1]
         tuned_model_name = f"{orig_model_name}-guanaco"
         print(f"Fine-tuned model: {tuned_model_name}")
 
@@ -42,7 +72,7 @@ class FineTuner:
         )
 
         train_args = TrainingArguments(
-            output_dir=f"{args.output_dir}/fine-tuned-models/{tuned_model_name}",
+            output_dir=f"{self.args.output_dir}/fine-tuned-models/{tuned_model_name}",
             num_train_epochs=4,
             per_device_train_batch_size=2,
             gradient_accumulation_steps=1,
@@ -102,5 +132,11 @@ class FineTuner:
             packing=False,
         )
 
+    @omnihub.tools.profile()
     def run(self):
         self.trainer.train()
+
+
+@omnihub.entrypoint
+def run(args):
+    FineTuner(args).run()

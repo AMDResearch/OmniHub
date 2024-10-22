@@ -7,31 +7,32 @@ and different model granularities (kernel, op, layer, entire model) and model ty
 The analysis of each workload may be done using available tools such as omniperf, omnitrace, rocprof, and so on.
 
 We have currently tested the scripts in this repository to work with the following ML models, stages, systems, and tools. We have
-ML models copied locally and pre-built [Docker and Apptainer images](docs/images.md) pre-installed and customized with the necessary 
-tools on the below systems for your ready consumption. 
+ML models copied locally and pre-built [Docker and Apptainer images](docs/images.md) pre-installed and customized with the necessary
+tools on the below systems for your ready consumption.
 We have used [Hugging Face](https://huggingface.co/) and [vLLM](https://github.com/vllm-project/vllm) API so far in our scripts, but support for other ML frameworks could be added (talk to [us](#contact)).
 Our scripts are very user-friendly where you can mix-and-match the models, tasks, and tools of interest with simple command line arguments.
 
 **ML Models**
+
 - Llama2 (7B, 13B, 70B)
 - Llama3 (8B, 70B)
 - Llama3.1 (8B, 70B, 405B)
 
 See [here](docs/models.md) for more details on the available ML models on Radha and the HPC Fund clusters.
 
-**Stages**
-- Infer
-- Finetune
-
 **Frameworks**
+
 - Hugging Face: inference and finetuning
 - vLLM: inference
+- PyTorch: training and inference
 
 **Systems**
+
 - HPC Fund: multi-node, multi-GPU; Apptainer
 - Radha: multi-node, multi-GPU; Apptainer, Docker
 
 **Tools**
+
 - [omniperf](https://github.com/ROCm/omniperf)
 - [omnitrace](https://github.com/ROCm/omnitrace)
 - [omnistat](https://github.com/AMDResearch/omnistat/)
@@ -48,27 +49,46 @@ needs to be collected. If the target system does not use SLURM, one could still 
 to generate reference job scripts and modify application launch commands as needed.
 
 In its most basic form, SLURM job script generation and job execution work as follows:
+
 ```console
-./omnihub-generate-job --omnihub-dir $HOME/omnihub > infer-single.slurm
-sbatch infer-single.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --app-config applications/hf-infer/config.yaml > hf-infer.slurm
+sbatch hf-infer.slurm
 ```
+
 Where `--omnihub-dir` points to your working copy of the OmniHub repository in
-the cluster.
+the cluster and `--app-config` points to the path to the application configuration file relative to the OmniHub directory.
 
 ### List of Command Line Options for `omnihub-generate-job`
 
 | Flag            | Options                             | Description                                                                              |
 | :------------:  | :--------------------------------:  | :--------------------------------------------------------------------------------------  |
 | `--omnihub-dir` |                                     | Path to OmniHub working copy. Should be accessible by all nodes.                         |
+| `--app-config`  |                                     | Path to the application configuration file relative to OmniHub directory.                |
 | `--cluster`     | **`hpcfund`**, `radha`              | Name of the cluster.                                                                     |
 | `--partition`   |                                     | Partition of the cluster; defaults to first partition in the cluster configuration file. |
 | `--num-nodes`   |                                     | Number of nodes to allocate for the execution.                                           |
 | `--model`       |                                     | Model to evaluate; defaults to first model in the cluster configuration file.            |
 | `--platform`    | **`apptainer`**, `docker`           | Container platform for the execution; supported platforms in cluster configuration file. |
-| `--stage`       | **`infer`**, `finetune`             | ML lifecycle stage.                                                                      |
-| `--framework`   | **`hf`**, `vllm`                    | ML framework of choice.                                                                  |
 | `--runner`      | `manual`, `torchrun`                | Distributed runner. Required for multi-node executions.                                  |
 | `--profile`     | `omniperf`, `omnitrace`, `omnistat` | Space-separated list of profilers to use.                                                |
+
+### Example Applications and Configuration Files
+
+The repository includes several example applications to help you get started with different ML models and stages. Below is a list of some of the example applications provided:
+
+- **Hugging Face Inference**: Example scripts for running inference using Hugging Face models.
+- **Hugging Face Finetuning**: Example scripts for finetuning models using Hugging Face.
+- **vLLM Inference**: Example scripts for running inference using vLLM models.
+- **PyTorch Training**: Example scripts for training a simple CNN using PyTorch.
+- **PyTorch Inference**: Example scripts for running inference using a simple CNN in PyTorch.
+
+You can find these example applications in the `applications` directory of the repository. Each application comes with its own configuration file, which defines various settings and hyper-parameters required for the application and the chosen framework. This file typically includes entries that specify the path to the application's main entrypoint, tensor parallel size, and other configuration details.
+
+#### Required Entry: `entrypoint`
+
+- **Description**: The `entrypoint` field specifies the main script of the application. This script must decorate the main function, which should be first executed when the application is launched, with `omnihub.entrypoint`. Optionally, the script may decorate individual functions with `omnihub.tools.profile` to apply Omnitrace and other tools to specific code sections of the application.
+- **Type**: String
+- **Example**: `"entrypoint": "infer.py"`
 
 ## Use cases
 
@@ -85,24 +105,38 @@ More specifically, you will find the omnitrace output stats under
 data can be found at `$WORK/results/omnihub/$SLURM_JOB_ID/omnistat`.
 Change `$HOME/omnihub` to the installed location of OmniHub in your environment.
 
-#### Infer Llama3.1 (405B) with a single-node execution on MI250s with Omnitrace and Omnistat
+#### Infer Llama3.1 (405B) with a single-node execution on MI300s (vLLM) with Omnistat
+
 ```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --model Meta-Llama-3.1-405B-Instruct-safetensors --stage infer --profile omnitrace omnistat > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --model Meta-Llama-3.1-405B-Instruct-safetensors --app-config applications/vllm-infer/config.yaml --profile omnistat > job.slurm
 sbatch job.slurm
 ```
-#### Finetune Llama3.1 (8B) with manual distributed execution on MI210s with Omniperf
+
+#### Infer Llama3.1 (405B) with a single-node execution on MI250s (Hugging Face) with Omnitrace and Omnistat
+
 ```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-3.1-8B-Instruct-safetensors --stage finetune --runner manual --profile omniperf > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --model Meta-Llama-3.1-405B-Instruct-safetensors --app-config applications/hf-infer/config.yaml --profile omnitrace omnistat > job.slurm
 sbatch job.slurm
 ```
-#### Infer Llama3.1 (8B) via Torchrun on MI210s with Omniperf
+
+#### Finetune Llama3.1 (8B) with manual distributed execution on MI210s (Hugging Face) with Omniperf
+
 ```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-3.1-8B-Instruct-safetensors --stage infer --runner torchrun --profile omniperf > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-3.1-8B-Instruct-safetensors --app-config applications/hf-finetune/config.yaml --runner manual --profile omniperf > job.slurm
 sbatch job.slurm
 ```
-#### Finetune Llama3.1 (8B) with Torchrun on MI210s with Omnitrace and Omnistat
+
+#### Infer Llama3.1 (8B) via Torchrun on MI210s (Hugging Face) with Omniperf
+
 ```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-3.1-8B-Instruct-safetensors --stage finetune --runner torchrun --profile omnitrace omnistat > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-3.1-8B-Instruct-safetensors --app-config applications/hf-infer/config.yaml --runner torchrun --profile omniperf > job.slurm
+sbatch job.slurm
+```
+
+#### Finetune Llama3.1 (8B) with Torchrun on MI210s (Hugging Face) with Omnitrace and Omnistat
+
+```
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-3.1-8B-Instruct-safetensors --app-config applications/hf-finetune/config.yaml --runner torchrun --profile omnitrace omnistat > job.slurm
 sbatch job.slurm
 ```
 
@@ -110,27 +144,33 @@ sbatch job.slurm
 
 Below are some example steps you can follow to run Llama3 (8B Instruct) model on radha and use different tools to collect comprehensive performance metrics.
 
-#### Infer on MI210s with Omniperf
+#### Infer on MI210s (Hugging Face) with Omniperf
+
 ```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster radha --model Meta-Llama-3-8B-Instruct-safetensors --stage infer --profile omniperf > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster radha --model Meta-Llama-3-8B-Instruct-safetensors --app-config applications/hf-infer/config.yaml --profile omniperf > job.slurm
 sbatch job.slurm
 ```
+
 If the run was successful, you will find the omniperf output stats at
 `$HOME/results/omnihub/$SLURM_JOB_ID/omniperf`, with which you may do further
 analysis (e.g., roofline analysis).
 
-#### Infer on MI210s with Omnitrace
+#### Infer on MI210s (Hugging Face) with Omnitrace
+
 ```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster radha --model Meta-Llama-3-8B-Instruct-safetensors --stage infer --profile omnitrace > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster radha --model Meta-Llama-3-8B-Instruct-safetensors --app-config applications/hf-infer/config.yaml --profile omnitrace > job.slurm
 sbatch job.slurm
 ```
+
 If the run was successful, you will find the omnitrace output stats under
 `$HOME/results/omnihub/$SLURM_JOB_ID/omnitrace-omnihub-hf-output`, with which
 you may use [Perfetto](https://ui.perfetto.dev/) for interactive exploration.
 
 ## Developer Corner
+
 If you want to contribute to OmniHub, make sure you read [this document](docs/developer.md) for developer pre-requisites.
 
 ## Contact
-- Email: dl.RAD-omnihub@amd.com
+
+- Email: [dl.RAD-omnihub@amd.com](mailto:dl.RAD-omnihub@amd.com)
 - [GitHub Discussions](https://github.com/AARInternal/omnihub/discussions)

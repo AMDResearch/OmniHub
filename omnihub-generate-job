@@ -44,7 +44,14 @@ parser._optionals.title = "Help"
 required_group = parser.add_argument_group("Required arguments")
 optional_group = parser.add_argument_group("Optional arguments")
 required_group.add_argument(
-    "--omnihub-dir", help="Path to Omnihub", type=str, required=True
+    "--omnihub-dir", help="Path to OmniHub", type=str, required=True, metavar=""
+)
+required_group.add_argument(
+    "--app-config",
+    help="Path to the application configuration file (relative to OmniHub directory)",
+    type=str,
+    required=True,
+    metavar="",
 )
 optional_group.add_argument(
     "--num-nodes", help="Number of nodes (default: 1)", type=int, default=1, metavar=""
@@ -75,24 +82,10 @@ optional_group.add_argument(
     metavar="",
 )
 optional_group.add_argument(
-    "--stage",
-    help="Stage to execute:\n\tinfer (default)\n\tfinetune",
-    type=str,
-    default="infer",
-    metavar="",
-)
-optional_group.add_argument(
     "--runner",
     help="Distributed runner. Required for multiple nodes.\n\tmanual\n\ttorchrun",
     type=str,
     required=False,
-    metavar="",
-)
-optional_group.add_argument(
-    "--framework",
-    help="ML framework of choice. \n\thf (default: Hugging Face)\n\tvllm",
-    type=str,
-    default="hf",
     metavar="",
 )
 optional_group.add_argument(
@@ -111,18 +104,16 @@ config_dir = f"{script_path}/slurm/config"
 template_file = f"{config_dir}/job.template"
 cluster_file = f"{config_dir}/{args.cluster}.yaml"
 
-# Omnihub scripts for each stage.
-scripts = {
-    "infer": "omnihub.py --mode infer",
-    "finetune": "omnihub.py --mode finetune",
-}
+# Omnihub main script
+script = "omnihub.py"
 
 # Sets of options supported by the generator.
-stages = set(scripts.keys())
 platforms = {"apptainer", "docker"}
 runners = {"manual", "torchrun"}
 profilers = {"omniperf", "omnitrace", "omnistat"}
-frameworks = {"hf", "vllm"}
+
+# Sets of supported GPU architectures.
+gpu_mapping = {"mi210": "gfx90a", "mi250": "gfx90a", "mi300": "gfx942"}
 
 # Lists of commands to execute.
 pre_execute = []
@@ -137,6 +128,7 @@ base_command = (
     "{omnihub_dir}/scripts/{base_script} {base_args}"
     " --model-dir={model_dir}"
     " --output-dir={results_dir}"
+    " --app-config={omnihub_dir}/{app_config}"
     " > {results_dir}/srun-\$SLURM_PROCID.out"
     " 2> {results_dir}/srun-\$SLURM_PROCID.err"
 )
@@ -187,9 +179,10 @@ omnistat_post_execute = [
 ]
 
 apptainer_wrap = (
-    "srun apptainer run $shared_dir/apptainer/omnihub.sif"
-    ' -c "export ROCM_PATH=/opt/rocm; export ROCM_LIB=/opt/rocm/lib;'
+    "srun apptainer run $shared_dir/apptainer/omnihub.{gpu_arch}.sif"
+    ' /bin/bash -c "export ROCM_PATH=/opt/rocm; export ROCM_LIB=/opt/rocm/lib;'
     " export LD_LIBRARY_PATH=/opt/rocm/lib:\$LD_LIBRARY_PATH;"
+    " export PATH=\$CONDA_DIR/bin:\$PATH;"
     ' {base_command}"'
 )
 
@@ -204,7 +197,7 @@ docker_wrap = (
     " --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     " --device=/dev/kfd --device=/dev/dri"
     " --network=host --ipc=host --shm-size 8G"
-    " docker-virtual.atlartifactory.amd.com/amd/omnihub/radha:latest"
+    " docker-virtual.atlartifactory.amd.com/amd/omnihub/radha:{gpu_arch}"
     ' bash -c \\"{base_command}; fix-host-owner $docker_results_dir\\""'
 )
 
@@ -231,16 +224,8 @@ if not os.path.isfile(cluster_file):
     print(f"Unable to find cluster configuration: {cluster_file}")
     sys.exit(1)
 
-if args.stage not in stages:
-    print(f"Unsupported stage: {args.stage}")
-    sys.exit(1)
-
 if args.runner and args.runner not in runners:
     print(f"Unsupported distributed runner: {args.runner}")
-    sys.exit(1)
-
-if args.framework and args.framework not in frameworks:
-    print(f"Unsupported framework: {args.framework}")
     sys.exit(1)
 
 if args.num_nodes > 1 and not args.runner:
@@ -254,7 +239,6 @@ if args.profile and not set(args.profile).issubset(profilers):
 if args.profile and set(args.profile).issuperset({"omniperf", "omnitrace"}):
     print(f"Incompatible profiler combination: omniperf and omnitrace")
     sys.exit(1)
-
 
 # STEP 2. Cluster-related validation, configuration and node selection.
 
@@ -332,9 +316,6 @@ if args.runner == "torchrun":
     num_tasks_per_node = 1
     base_prefix.append(torchrun_prefix)
 
-# Framework-specific configuration.
-base_args.append(f"--framework {args.framework}" if args.framework else "")
-
 # Main set of variables as expected in the host context. We assume Apptainer
 # shares the same context as the host, so these are also used to format
 # Apptainer executions.
@@ -343,13 +324,12 @@ variables = [
     ("models_dir", f"{models_dir}"),
     ("shared_dir", f"{shared_dir}"),
     ("results_dir", f"{results_dir}"),
+    ("app_config", f"{args.app_config}"),
     ("model", f"{model}"),
     ("model_dir", f"{models_dir}/{model}"),
     ("cluster", f"{args.cluster}"),
     ("partition", f"{partition_name}"),
     ("platform", f"{platform}"),
-    ("framework", f"{args.framework}"),
-    ("stage", f"{args.stage}"),
     ("runner", f"{args.runner}" if args.runner else ""),
     ("profilers", f"{','.join(args.profile)}" if args.profile else ""),
     ("num_nodes", f"{num_nodes}"),
@@ -392,7 +372,7 @@ if platform == "docker":
         docker_environment.append((variable, value.format(**variable_map)))
 
 # Additional variables that are needed to format base_command.
-variable_map["base_script"] = scripts[args.stage]
+variable_map["base_script"] = script
 variable_map["base_args"] = " ".join(base_args)
 
 if base_prefix:
@@ -400,12 +380,22 @@ if base_prefix:
 
 base_command = base_command.format(**variable_map)
 
+# Map the GPU type to the corresponding architecture.
+gpu_type = partitions[partition_name]["gpu"]
+if gpu_type in gpu_mapping:
+    gpu_arch = gpu_mapping[gpu_type]
+else:
+    print(f"Unsupported GPU type: {gpu_type}")
+    sys.exit(1)
+
 command = base_command
 if platform == "apptainer":
-    command = apptainer_wrap.format(base_command=base_command)
+    command = apptainer_wrap.format(base_command=base_command, gpu_arch=gpu_arch)
 elif platform == "docker":
     docker_args = " ".join([f"-e {x[0]}={x[1]}" for x in docker_environment])
-    command = docker_wrap.format(base_command=base_command, docker_args=docker_args)
+    command = docker_wrap.format(
+        base_command=base_command, docker_args=docker_args, gpu_arch=gpu_arch
+    )
 
 execute.append(command)
 

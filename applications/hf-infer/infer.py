@@ -1,6 +1,12 @@
+import os
+import sys
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+
 import torch
 from accelerate import DistributedType, PartialState
 from transformers import pipeline
+
+import omnihub
 
 
 def print_outputs(prompt, outputs):
@@ -11,10 +17,30 @@ def print_outputs(prompt, outputs):
 
 
 class Inferencer:
-    def __init__(self, args):
+    def __init__(self, custom_args) -> None:
+        parser = ArgumentParser(
+            description="Inference using a Hugging Face model",
+            formatter_class=ArgumentDefaultsHelpFormatter,
+        )
+        parser.add_argument(
+            "-m", "--model-dir", help="Path to the model", type=str, required=True
+        )
+        parser.add_argument(
+            "-o", "--output-dir", help="Path to store output", type=str, default="."
+        )
+
+        self.args = parser.parse_args(args=custom_args)
+
+        if not os.path.exists(self.args.model_dir) or not os.path.isdir(
+            self.args.model_dir
+        ):
+            print("Model path does not exist")
+            parser.print_help()
+            sys.exit(1)
+
         self.pipe = pipeline(
             task="text-generation",
-            model=args.model_dir,
+            model=self.args.model_dir,
             max_length=200,
             model_kwargs={
                 "quantization_config": {
@@ -30,6 +56,7 @@ class Inferencer:
             ),
         )
 
+    @omnihub.tools.profile()
     def run(self):
         pipe = self.pipe
 
@@ -71,3 +98,8 @@ class Inferencer:
         prompt = "What is a large language model? Explain it to a 10 year old."
         outputs = pipe(f"<s>[INST] {prompt} [/INST]", truncation=True)
         print_outputs(prompt, outputs)
+
+
+@omnihub.entrypoint
+def run(args):
+    Inferencer(args).run()

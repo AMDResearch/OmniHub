@@ -1,5 +1,11 @@
+import os
+import sys
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+
 import torch
 from vllm import LLM, SamplingParams
+
+import omnihub
 
 
 def print_outputs(outputs):
@@ -11,10 +17,37 @@ def print_outputs(outputs):
 
 
 class Inferencer:
-    def __init__(self, args) -> None:
+    def __init__(self, custom_args) -> None:
+        parser = ArgumentParser(
+            description="Inference using a vLLM model",
+            formatter_class=ArgumentDefaultsHelpFormatter,
+        )
+        parser.add_argument(
+            "-m", "--model-dir", help="Path to the model", type=str, required=True
+        )
+        parser.add_argument(
+            "-o", "--output-dir", help="Path to store output", type=str, default="."
+        )
+        parser.add_argument(
+            "--tensor-parallel-size", help="Tensor parallel size", type=int, default=-1
+        )
+        self.args = parser.parse_args(args=custom_args)
+
+        if not os.path.exists(self.args.model_dir) or not os.path.isdir(
+            self.args.model_dir
+        ):
+            print("Model path does not exist")
+            parser.print_help()
+            sys.exit(1)
+
         self.llm = LLM(
-            model=args.model_dir,
-            tensor_parallel_size=torch.cuda.device_count(),
+            model=self.args.model_dir,
+            # TODO/FIXME(aaji): TP does not work for MI250 and does not work reliably for MI300
+            tensor_parallel_size=(
+                self.args.tensor_parallel_size
+                if self.args.tensor_parallel_size != -1
+                else torch.cuda.device_count()
+            ),
             # pipeline_parallel_size=torch.cuda.device_count(),
             # gpu_memory_utilization=0.99,
             # max_model_len=800,
@@ -22,13 +55,16 @@ class Inferencer:
             # distributed_executor_backend="ray",
         )
 
+    @omnihub.tools.profile()
     def run(self):
         # Create a sampling params object.
         sampling_params = SamplingParams(
+            n=1,
             temperature=0.8,
             top_p=0.95,
             max_tokens=256,
             skip_special_tokens=True,
+            ignore_eos=True,
         )
 
         # summarize something
@@ -61,3 +97,8 @@ class Inferencer:
         outputs = self.llm.generate(prompts, sampling_params)
         # Print the outputs.
         print_outputs(outputs)
+
+
+@omnihub.entrypoint
+def run(args):
+    Inferencer(args).run()

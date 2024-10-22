@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH -J $job_name
 #SBATCH -o %j-slurm.out
+#SBATCH -e %j-slurm.err
 #SBATCH -N $num_nodes
 #SBATCH --tasks-per-node=$num_tasks_per_node
 #SBATCH -t $time
