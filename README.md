@@ -36,6 +36,8 @@ See [here](docs/models.md) for more details on the available ML models on Radha 
 - [omniperf](https://github.com/ROCm/omniperf)
 - [omnitrace](https://github.com/ROCm/omnitrace)
 - [omnistat](https://github.com/AMDResearch/omnistat/)
+- [rocprof](https://github.com/ROCm/rocprofiler)
+- [rocprofv2](https://github.com/ROCm/rocprofiler)
 
 ## Usage
 
@@ -116,6 +118,20 @@ sbatch job.slurm
 
 ```
 ./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --model Meta-Llama-3.1-405B-Instruct-safetensors --app-config applications/hf-infer/config.yaml --profile omnitrace omnistat > job.slurm
+sbatch job.slurm
+```
+
+#### Finetune Llama3.1 (8B) with a single-node execution on MI250s (Hugging Face) with Rocprof
+
+```
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --model Meta-Llama-3.1-8B-Instruct-safetensors --app-config applications/hf-finetune/config.yaml --runner manual --profile rocprof  > job.slurm
+sbatch job.slurm
+```
+
+#### Finetune Llama3.1 (8B) with a single-node execution on MI250s (Hugging Face) with RocprofV2
+
+```
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --model Meta-Llama-3.1-8B-Instruct-safetensors --app-config applications/hf-finetune/config.yaml --runner manual --profile rocprofv2  > job.slurm
 sbatch job.slurm
 ```
 

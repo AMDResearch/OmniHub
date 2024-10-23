@@ -17,6 +17,17 @@ head_port=29400
 # export NCCL_IB_DISABLE=0
 # export NCCL_P2P_DISABLE=0
 
+# https://rocm.docs.amd.com/en/latest/how-to/tuning-guides/mi300x/workload.html#multi-node-fsdp-and-rccl-settings
+# https://pytorch.org/docs/stable/torch_nccl_environment_variables.html
+# export CUDA_LAUNCH_BLOCKING=1
+# export TORCH_DISABLE_ADDR2LINE=1
+# export TORCH_NCCL_ENABLE_MONITORING=1 # If set to 1,enable monitoring thread which aborts the process when the ProcessGroupNCCL Watchdog thread gets stuck and no heartbeat is detected after TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC. This can happen due to calling CUDA/NCCL APIs that may hang. It is Useful to prevent jobs being stuck for a prolonged time than necessary tying up cluster resources.
+# export GPU_MAX_HW_QUEUE=1 # https://rocm.docs.amd.com/en/latest/how-to/tuning-guides/mi300x/workload.html#multi-node-fsdp-and-rccl-settings
+# export TORCH_DISTRIBUTED_DEBUG=INFO # With TORCH_CPP_LOG_LEVEL=INFO, the environment variable TORCH_DISTRIBUTED_DEBUG can be used to trigger additional useful logging and collective synchronization checks to ensure all ranks are synchronized appropriately.
+# export TORCH_NCCL_BLOCKING_WAIT=1 # Control whether or not wait() is blocking or non-blocking.
+# export TORCH_NCCL_HIGH_PRIORITY=1 # Control whether to use high priority stream for the NCCL communicator.
+# export TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC=600 # Control the watchdog heartbeat timeout period after which the monitoring thread will abort the process.
+
 if [[ ! -d $omnihub_dir ]]; then
     echo "Error: failed to find Omnihub directory $omnihub_dir"
     exit 1
