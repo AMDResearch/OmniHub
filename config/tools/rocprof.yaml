@@ -1,0 +1,8 @@
+tools:
+  - name: rocprofv1-stats
+    prefix: 'rocprof --stats -o {results_dir}/rocprofv1-stats/\$SLURM_PROCID/stats.csv -d {results_dir}/rocprofv1-stats/\$SLURM_PROCID'
+  - name: rocprofv2-pmc
+    prefix: 'rocprofv2 -i {omnihub_dir}/config/rocprof.txt -o samples -d {results_dir}/rocprofv2-pmc/\$SLURM_PROCID'
+conflicts:
+  - omniperf
+  - omnitrace

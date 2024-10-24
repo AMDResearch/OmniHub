@@ -1,0 +1,6 @@
+tools:
+  - name: omniperf
+    prefix: 'omniperf profile --name omnihub --path {results_dir}/omniperf/\$SLURM_PROCID --'
+conflicts:
+  - rocprof
+  - omnitrace

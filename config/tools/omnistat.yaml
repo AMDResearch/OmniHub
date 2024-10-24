@@ -1,0 +1,15 @@
+tools:
+  - name: omnistat
+    pre-execute: |
+      # Configure and start Omnistat
+      export OMNISTAT_CONFIG=$shared_dir/tools/omnistat/run/omnihub.config
+      export OMNISTAT_PROMSERVER_DATADIR=$results_dir/omnistat/prometheus
+      omnistat_dir=$shared_dir/tools/omnistat/run/venv/bin/
+      mkdir omnistat
+      cd omnistat
+      $omnistat_dir/omnistat-usermode --start --interval 1
+      cd -
+    post-execute: |
+      # Stop Omnistat
+      $omnistat_dir/omnistat-query --job $SLURM_JOB_ID --interval 1 > $results_dir/omnistat/report.txt
+      $omnistat_dir/omnistat-usermode --stop

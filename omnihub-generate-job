@@ -33,6 +33,27 @@ from string import Template
 
 import yaml
 
+# Paths to YAML configuration files.
+script_path = pathlib.Path(__file__).parent.resolve()
+config_dir = f"{script_path}/config"
+tools_dir = f"{config_dir}/tools"
+template_file = f"{config_dir}/job.template"
+
+# Load tool YAML configuration files.
+tools = {}
+for i in pathlib.Path(tools_dir).glob("*.yaml"):
+    source = i.stem
+    with open(i, "r") as f:
+        config = yaml.safe_load(f)
+        conflicts = config.get("conflicts", [])
+        for tool in config["tools"]:
+            name = tool["name"]
+            tool["source"] = source
+            tool["conflicts"] = conflicts
+            tools[name] = tool
+
+tool_names = set(tools.keys())
+
 parser = argparse.ArgumentParser(
     description="Generate a SLURM job file to run Omnihub models",
     prog="omnihub-generate-job",
@@ -89,19 +110,16 @@ optional_group.add_argument(
     metavar="",
 )
 optional_group.add_argument(
-    "--profile",
-    help="List of profilers to choose from:\n\trocprof\n\trocprofv2\n\tomniperf\n\tomnitrace\n\tomnistat",
+    "--tools",
+    help="List of tools to choose from:\n\t{}".format("\n\t".join(sorted(tool_names))),
     type=str,
     nargs="+",
+    default=[],
     metavar="",
 )
 
 args = parser.parse_args()
 
-# Paths to YAML configuration files.
-script_path = pathlib.Path(__file__).parent.resolve()
-config_dir = f"{script_path}/slurm/config"
-template_file = f"{config_dir}/job.template"
 cluster_file = f"{config_dir}/{args.cluster}.yaml"
 
 # Omnihub main script
@@ -110,7 +128,6 @@ script = "omnihub.py"
 # Sets of options supported by the generator.
 platforms = {"apptainer", "docker"}
 runners = {"manual", "torchrun"}
-profilers = {"rocprof", "rocprofv2", "omniperf", "omnitrace", "omnistat"}
 
 # Sets of supported GPU architectures.
 gpu_mapping = {"mi210": "gfx90a", "mi250": "gfx90a", "mi300": "gfx942"}
@@ -151,41 +168,6 @@ torchrun_prefix = (
     " --log-dir {results_dir}"
     " --redirect 3"
 )
-
-rocprof_prefix = (
-    " rocprof --stats -o {results_dir}/rocprof-\$SLURM_PROCID/stats.csv -d {results_dir}/rocprof-\$SLURM_PROCID"
-)
-
-rocprofv2_prefix = (
-    " rocprofv2 -i $omnihub_dir/slurm/config/rocprof.txt -o rocprof -d {results_dir}/rocprof-\$SLURM_PROCID"
-)
-
-omniperf_prefix = (
-    " export ROCPROF=rocprofv2;"
-    " omniperf profile --name omnihub --path {results_dir}/omniperf-\$SLURM_PROCID --"
-)
-
-omnitrace_args = ["--omnitrace"]
-omnitrace_environment = [
-    ("OMNITRACE_OUTPUT_PATH", "{results_dir}/omnitrace-%tag%-output")
-]
-
-omnistat_pre_execute = [
-    "# Configure and start Omnistat",
-    "export OMNISTAT_CONFIG=$shared_dir/tools/omnistat/run/omnihub.config",
-    "export OMNISTAT_PROMSERVER_DATADIR=$results_dir/omnistat/prometheus",
-    "omnistat_dir=$shared_dir/tools/omnistat/run/venv/bin/",
-    "mkdir omnistat",
-    "cd omnistat",
-    "$omnistat_dir/omnistat-usermode --start --interval 1",
-    "cd -",
-]
-omnistat_post_execute = [
-    "# Stop Omnistat",
-    "$omnistat_dir/omnistat-query --job $SLURM_JOB_ID --interval 1"
-    " > $results_dir/omnistat/report.txt",
-    "$omnistat_dir/omnistat-usermode --stop",
-]
 
 apptainer_wrap = (
     "srun apptainer run $shared_dir/apptainer/omnihub.{gpu_arch}.sif"
@@ -241,13 +223,27 @@ if args.num_nodes > 1 and not args.runner:
     print(f"Multi-node execution requires a distributed runner")
     sys.exit(1)
 
-if args.profile and not set(args.profile).issubset(profilers):
-    print(f"Unsupported profiler: {args.profile}")
+args_tools_names = set(args.tools)
+if not args_tools_names.issubset(tool_names):
+    unsupported = args_tools_names - tool_names
+    print(f"Unsupported tools: {', '.join(unsupported)}")
     sys.exit(1)
 
-if args.profile and len(set(args.profile).intersection({"omniperf", "omnitrace", "rocprofv2", "rocprof"}))>1:
-    print(f"Incompatible profiler combination: must select only one: omniperf/omnitrace/rocprofv2/rocprof")
-    sys.exit(1)
+args_tools_sources = set()
+for tool in args.tools:
+    source = tools[tool]["source"]
+    if source in args_tools_sources:
+        print(f"Unable to use multiple variants of the same tool: {source}")
+        sys.exit(1)
+    args_tools_sources.add(source)
+
+args_tools_all = args_tools_names | args_tools_sources
+for tool in args.tools:
+    conflicts = set(tools[tool]["conflicts"])
+    intersection = conflicts & args_tools_all
+    if len(intersection) > 0:
+        print(f"Incompatible tool combination: {tool}, {', '.join(intersection)}")
+        sys.exit(1)
 
 # STEP 2. Cluster-related validation, configuration and node selection.
 
@@ -302,28 +298,24 @@ if model not in models:
 num_gpus_per_node = partitions[partition_name]["num-gpus"]
 num_tasks_per_node = num_gpus_per_node
 
-if args.profile and "omnistat" in args.profile:
-    pre_execute.extend(omnistat_pre_execute)
-    post_execute.extend(omnistat_post_execute)
+for tool in args.tools:
+    tool_config = tools[tool]
+    if "pre-execute" in tool_config:
+        pre_execute.extend(tool_config["pre-execute"].splitlines())
+    if "post-execute" in tool_config:
+        post_execute.extend(tool_config["post-execute"].splitlines())
+    if "env" in tool_config:
+        environment.extend(tool_config["env"].items())
+    if "args" in tool_config:
+        base_args.extend(tool_config["args"])
+    if "prefix" in tool_config:
+        base_prefix.append(tool_config["prefix"])
 
-if args.profile and "omnitrace" in args.profile:
-    environment.extend(omnitrace_environment)
-    base_args.extend(omnitrace_args)
-
-if args.profile and "omniperf" in args.profile:
-    # Force num_tasks_per_node to 1 for omniperf to lower chance of hangs/crashes.
-    num_tasks_per_node = num_gpus_per_node = 1
-    base_prefix.append(omniperf_prefix)
-
-elif args.profile and ("rocprof" in args.profile):
-    # Force num_tasks_per_node to 1 for rocprofv2 to lower chance of hangs/crashes.
-    num_tasks_per_node = num_gpus_per_node = 1
-    base_prefix.append(rocprof_prefix)
-
-elif args.profile and ("rocprofv2" in args.profile):
-    # Force num_tasks_per_node to 1 for rocprofv2 to lower chance of hangs/crashes.
-    num_tasks_per_node = num_gpus_per_node = 1
-    base_prefix.append(rocprofv2_prefix)
+# Force num_tasks_per_node to 1 for rocprof-based tools to lower chance of
+# hangs/crashes.
+rocprof_based_tools = {"omniperf", "rocprof"}
+if len(args_tools_sources.intersection(rocprof_based_tools)) > 0:
+    num_tasks_per_node = 1
 
 # Single node execution without a runner should be executed without distributed
 # execution as a single task.
@@ -352,7 +344,7 @@ variables = [
     ("partition", f"{partition_name}"),
     ("platform", f"{platform}"),
     ("runner", f"{args.runner}" if args.runner else ""),
-    ("profilers", f"{','.join(args.profile)}" if args.profile else ""),
+    ("tools", f"{','.join(args.tools)}" if len(args.tools) else ""),
     ("num_nodes", f"{num_nodes}"),
     ("num_gpus_per_node", f"{num_gpus_per_node}"),
     ("num_tasks_per_node", f"{num_tasks_per_node}"),

@@ -1,0 +1,9 @@
+tools:
+  - name: omnitrace
+    args:
+      - --omnitrace
+    env:
+      OMNITRACE_OUTPUT_PATH: '{results_dir}/omnitrace'
+conflicts:
+  - omniperf
+  - rocprof

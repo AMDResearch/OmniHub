@@ -33,11 +33,13 @@ See [here](docs/models.md) for more details on the available ML models on Radha 
 
 **Tools**
 
+- [rocprof](https://github.com/ROCm/rocprofiler)
 - [omniperf](https://github.com/ROCm/omniperf)
 - [omnitrace](https://github.com/ROCm/omnitrace)
 - [omnistat](https://github.com/AMDResearch/omnistat/)
-- [rocprof](https://github.com/ROCm/rocprofiler)
-- [rocprofv2](https://github.com/ROCm/rocprofiler)
+
+Check the [list of supported tools](#list-of-supported-tools) for more details
+about tools and their execution modes.
 
 ## Usage
 
@@ -62,17 +64,27 @@ the cluster and `--app-config` points to the path to the application configurati
 
 ### List of Command Line Options for `omnihub-generate-job`
 
-| Flag            | Options                             | Description                                                                              |
-| :------------:  | :--------------------------------:  | :--------------------------------------------------------------------------------------  |
-| `--omnihub-dir` |                                     | Path to OmniHub working copy. Should be accessible by all nodes.                         |
-| `--app-config`  |                                     | Path to the application configuration file relative to OmniHub directory.                |
-| `--cluster`     | **`hpcfund`**, `radha`              | Name of the cluster.                                                                     |
-| `--partition`   |                                     | Partition of the cluster; defaults to first partition in the cluster configuration file. |
-| `--num-nodes`   |                                     | Number of nodes to allocate for the execution.                                           |
-| `--model`       |                                     | Model to evaluate; defaults to first model in the cluster configuration file.            |
-| `--platform`    | **`apptainer`**, `docker`           | Container platform for the execution; supported platforms in cluster configuration file. |
-| `--runner`      | `manual`, `torchrun`                | Distributed runner. Required for multi-node executions.                                  |
-| `--profile`     | `omniperf`, `omnitrace`, `omnistat` | Space-separated list of profilers to use.                                                |
+| Flag            | Options                                   | Description                                                                              |
+| :------------:  | :---------------------------------------: | :--------------------------------------------------------------------------------------- |
+| `--omnihub-dir` |                                           | Path to OmniHub working copy. Should be accessible by all nodes.                         |
+| `--app-config`  |                                           | Path to the application configuration file relative to OmniHub directory.                |
+| `--cluster`     | **`hpcfund`**, `radha`                    | Name of the cluster.                                                                     |
+| `--partition`   |                                           | Partition of the cluster; defaults to first partition in the cluster configuration file. |
+| `--num-nodes`   |                                           | Number of nodes to allocate for the execution.                                           |
+| `--model`       |                                           | Model to evaluate; defaults to first model in the cluster configuration file.            |
+| `--platform`    | **`apptainer`**, `docker`                 | Container platform for the execution; supported platforms in cluster configuration file. |
+| `--runner`      | `manual`, `torchrun`                      | Distributed runner. Required for multi-node executions.                                  |
+| `--tools`       | [List of tools](#list-of-supported-tools) | Space-separated list of tools to use.                                                    |
+
+### List of Supported Tools
+
+| Tool              | Description                                                                 |
+| :---------------- | :-------------------------------------------------------------------------- |
+| `rocprofv1-stats` | Kernel execution stats.                                                     |
+| `rocprofv2-pmc`   | Profiling with performance counters ([configuration](config/rocprof.txt)).  |
+| `omniperf`        | Collect all performance counters.                                           |
+| `omnitrace`       | Application tracing.                                                        |
+| `omnistat`        | Low-overhead system metrics, sampled at 1s intervals.                       |
 
 ### Example Applications and Configuration Files
 
@@ -102,7 +114,7 @@ If the run was successful, you will find the execution logs at
 `$WORK/results/omnihub/$SLURM_JOB_ID`, with which you may do further analysis (e.g., roofline
 analysis, perfetto trace analysis, and GPU telemetry analysis).
 More specifically, you will find the omnitrace output stats under
-`$WORK/results/omnihub/$SLURM_JOB_ID/omnitrace-omnihub-hf-output`, with which you may use
+`$WORK/results/omnihub/$SLURM_JOB_ID/omnitrace`, with which you may use
 [Perfetto](https://ui.perfetto.dev/) for interactive exploration. The omnistat GPU telemetry
 data can be found at `$WORK/results/omnihub/$SLURM_JOB_ID/omnistat`.
 Change `$HOME/omnihub` to the installed location of OmniHub in your environment.
@@ -110,49 +122,49 @@ Change `$HOME/omnihub` to the installed location of OmniHub in your environment.
 #### Infer Llama3.1 (405B) with a single-node execution on MI300s (vLLM) with Omnistat
 
 ```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --model Meta-Llama-3.1-405B-Instruct-safetensors --app-config applications/vllm-infer/config.yaml --profile omnistat > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --model Meta-Llama-3.1-405B-Instruct-safetensors --app-config applications/vllm-infer/config.yaml --tools omnistat > job.slurm
 sbatch job.slurm
 ```
 
 #### Infer Llama3.1 (405B) with a single-node execution on MI250s (Hugging Face) with Omnitrace and Omnistat
 
 ```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --model Meta-Llama-3.1-405B-Instruct-safetensors --app-config applications/hf-infer/config.yaml --profile omnitrace omnistat > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --model Meta-Llama-3.1-405B-Instruct-safetensors --app-config applications/hf-infer/config.yaml --tools omnitrace omnistat > job.slurm
 sbatch job.slurm
 ```
 
-#### Finetune Llama3.1 (8B) with a single-node execution on MI250s (Hugging Face) with Rocprof
+#### Finetune Llama3.1 (8B) with a single-node execution on MI250s (Hugging Face) with Rocprof stats
 
 ```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --model Meta-Llama-3.1-8B-Instruct-safetensors --app-config applications/hf-finetune/config.yaml --runner manual --profile rocprof  > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --model Meta-Llama-3.1-8B-Instruct-safetensors --app-config applications/hf-finetune/config.yaml --runner manual --tools rocprofv1-stats  > job.slurm
 sbatch job.slurm
 ```
 
-#### Finetune Llama3.1 (8B) with a single-node execution on MI250s (Hugging Face) with RocprofV2
+#### Finetune Llama3.1 (8B) with a single-node execution on MI250s (Hugging Face) with Rocprof performance counters
 
 ```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --model Meta-Llama-3.1-8B-Instruct-safetensors --app-config applications/hf-finetune/config.yaml --runner manual --profile rocprofv2  > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --model Meta-Llama-3.1-8B-Instruct-safetensors --app-config applications/hf-finetune/config.yaml --runner manual --tools rocprofv2-pmc  > job.slurm
 sbatch job.slurm
 ```
 
 #### Finetune Llama3.1 (8B) with manual distributed execution on MI210s (Hugging Face) with Omniperf
 
 ```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-3.1-8B-Instruct-safetensors --app-config applications/hf-finetune/config.yaml --runner manual --profile omniperf > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-3.1-8B-Instruct-safetensors --app-config applications/hf-finetune/config.yaml --runner manual --tools omniperf > job.slurm
 sbatch job.slurm
 ```
 
 #### Infer Llama3.1 (8B) via Torchrun on MI210s (Hugging Face) with Omniperf
 
 ```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-3.1-8B-Instruct-safetensors --app-config applications/hf-infer/config.yaml --runner torchrun --profile omniperf > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-3.1-8B-Instruct-safetensors --app-config applications/hf-infer/config.yaml --runner torchrun --tools omniperf > job.slurm
 sbatch job.slurm
 ```
 
 #### Finetune Llama3.1 (8B) with Torchrun on MI210s (Hugging Face) with Omnitrace and Omnistat
 
 ```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-3.1-8B-Instruct-safetensors --app-config applications/hf-finetune/config.yaml --runner torchrun --profile omnitrace omnistat > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --model Meta-Llama-3.1-8B-Instruct-safetensors --app-config applications/hf-finetune/config.yaml --runner torchrun --tools omnitrace omnistat > job.slurm
 sbatch job.slurm
 ```
 
@@ -163,7 +175,7 @@ Below are some example steps you can follow to run Llama3 (8B Instruct) model on
 #### Infer on MI210s (Hugging Face) with Omniperf
 
 ```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster radha --model Meta-Llama-3-8B-Instruct-safetensors --app-config applications/hf-infer/config.yaml --profile omniperf > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster radha --model Meta-Llama-3-8B-Instruct-safetensors --app-config applications/hf-infer/config.yaml --tools omniperf > job.slurm
 sbatch job.slurm
 ```
 
@@ -174,12 +186,12 @@ analysis (e.g., roofline analysis).
 #### Infer on MI210s (Hugging Face) with Omnitrace
 
 ```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster radha --model Meta-Llama-3-8B-Instruct-safetensors --app-config applications/hf-infer/config.yaml --profile omnitrace > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster radha --model Meta-Llama-3-8B-Instruct-safetensors --app-config applications/hf-infer/config.yaml --tools omnitrace > job.slurm
 sbatch job.slurm
 ```
 
 If the run was successful, you will find the omnitrace output stats under
-`$HOME/results/omnihub/$SLURM_JOB_ID/omnitrace-omnihub-hf-output`, with which
+`$HOME/results/omnihub/$SLURM_JOB_ID/omnitrace`, with which
 you may use [Perfetto](https://ui.perfetto.dev/) for interactive exploration.
 
 ## Developer Corner
