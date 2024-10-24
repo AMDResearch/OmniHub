@@ -146,25 +146,25 @@ base_command = (
     " --model-dir={model_dir}"
     " --output-dir={results_dir}"
     " --app-config={omnihub_dir}/{app_config}"
-    " > {results_dir}/srun-\$SLURM_PROCID.out"
-    " 2> {results_dir}/srun-\$SLURM_PROCID.err"
+    " > {results_dir}/srun-\\$SLURM_PROCID.out"
+    " 2> {results_dir}/srun-\\$SLURM_PROCID.err"
 )
 
 manual_args = [
     "--manual-launch-ddp",
     "--master-addr=$head_host",
     "--master-port=$head_port",
-    "--rank=\$SLURM_PROCID",
+    "--rank=\\$SLURM_PROCID",
     "--world-size=$SLURM_NTASKS",
 ]
 
 torchrun_prefix = (
     "torchrun"
-    " --nnodes=\$SLURM_JOB_NUM_NODES"
+    " --nnodes=\\$SLURM_JOB_NUM_NODES"
     " --nproc_per_node=$num_gpus_per_node"
     " --master_addr=$head_host"
     " --master_port=$head_port"
-    " --node-rank=\$SLURM_PROCID"
+    " --node-rank=\\$SLURM_PROCID"
     " --log-dir {results_dir}"
     " --redirect 3"
 )
@@ -172,8 +172,8 @@ torchrun_prefix = (
 apptainer_wrap = (
     "srun apptainer run $shared_dir/apptainer/omnihub.{gpu_arch}.sif"
     ' /bin/bash -c "export ROCM_PATH=/opt/rocm; export ROCM_LIB=/opt/rocm/lib;'
-    " export LD_LIBRARY_PATH=/opt/rocm/lib:\$LD_LIBRARY_PATH;"
-    " export PATH=\$CONDA_DIR/bin:\$PATH;"
+    " export LD_LIBRARY_PATH=/opt/rocm/lib:\\$LD_LIBRARY_PATH;"
+    " export PATH=\\$CONDA_DIR/bin:\\$PATH;"
     ' {base_command}"'
 )
 
