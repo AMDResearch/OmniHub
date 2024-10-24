@@ -2,9 +2,9 @@ tools:
   - name: omnistat
     pre-execute: |
       # Configure and start Omnistat
-      export OMNISTAT_CONFIG=$shared_dir/tools/omnistat/run/omnihub.config
+      export OMNISTAT_CONFIG=$shared_dir/tools/omnistat/omnihub.config
       export OMNISTAT_PROMSERVER_DATADIR=$results_dir/omnistat/prometheus
-      omnistat_dir=$shared_dir/tools/omnistat/run/venv/bin/
+      omnistat_dir=$shared_dir/tools/omnistat/venv/bin/
       mkdir omnistat
       cd omnistat
       $omnistat_dir/omnistat-usermode --start --interval 1
