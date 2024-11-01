@@ -12,6 +12,11 @@ from tqdm import tqdm
 
 import omnihub
 
+# Workaround to set the CIFAR-10 dataset URL
+torchvision.datasets.CIFAR10.url = (
+    "http://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
+)
+
 
 # Define a simple CNN
 class SimpleCNN(nn.Module):
@@ -37,26 +42,28 @@ class SimpleCNN(nn.Module):
 class Trainer:
     def __init__(self, custom_args, epochs=2):
         parser = ArgumentParser(
-            description="Inference using a Hugging Face model",
+            description="Train a PyTorch model",
             formatter_class=ArgumentDefaultsHelpFormatter,
         )
         parser.add_argument(
-            "-o", "--output-dir", help="Path to store output", type=str, required=True
-        )
-        parser.add_argument(
-            "-m", "--model-dir", help="Path to the model", type=str, default=None
+            "-m",
+            "--model-dir",
+            help="Path to store the trained model",
+            type=str,
+            required=True,
         )
 
         self.args = parser.parse_args(args=custom_args)
 
-        if not os.path.exists(self.args.output_dir) or not os.path.isdir(
-            self.args.output_dir
-        ):
-            print("Output path does not exist")
+        if not os.path.exists(self.args.model_dir):
+            os.makedirs(self.args.model_dir)
+            print(f"Created directory: {self.args.model_dir}")
+        elif not os.path.isdir(self.args.model_dir):
+            print("Output path is not a directory")
             parser.print_help()
             sys.exit(1)
 
-        model_path = f"{self.args.output_dir}/cifar_net.pth"
+        model_path = f"{self.args.model_dir}/cifar_net.pth"
         print(f"Model will be saved to: {model_path}")
 
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

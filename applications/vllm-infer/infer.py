@@ -26,9 +26,6 @@ class Inferencer:
             "-m", "--model-dir", help="Path to the model", type=str, required=True
         )
         parser.add_argument(
-            "-o", "--output-dir", help="Path to store output", type=str, default="."
-        )
-        parser.add_argument(
             "--tensor-parallel-size", help="Tensor parallel size", type=int, default=-1
         )
         self.args = parser.parse_args(args=custom_args)

@@ -25,9 +25,6 @@ class Inferencer:
         parser.add_argument(
             "-m", "--model-dir", help="Path to the model", type=str, required=True
         )
-        parser.add_argument(
-            "-o", "--output-dir", help="Path to store output", type=str, default="."
-        )
 
         self.args = parser.parse_args(args=custom_args)
 

@@ -1,0 +1,15 @@
+tools:
+  - name: pytorch-stats
+    env:
+      PYTORCH_PROFILER_OUTPUT_PATH: '{results_dir}/tools/pytorch-stats'
+    args:
+      - --pytorch-profiler-stats
+  - name: pytorch-trace
+    env:
+      PYTORCH_PROFILER_OUTPUT_PATH: '{results_dir}/tools/pytorch-trace'
+    args:
+      - --pytorch-profiler-trace
+conflicts:
+  - omniperf
+  - rocprof
+  - omnitrace

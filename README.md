@@ -80,11 +80,13 @@ the cluster and `--app-config` points to the path to the application configurati
 
 | Tool              | Description                                                                 |
 | :---------------- | :-------------------------------------------------------------------------- |
+| `omniperf`        | Collect all performance counters.                                           |
+| `omnistat`        | Low-overhead system metrics, sampled at 1s intervals.                       |
+| `omnitrace`       | Application tracing.                                                        |
+| `pytorch-stats`   | Collects detailed statistics of PyTorch operations.                         |
+| `pytorch-trace`   | PyTorch execution traces compatible with TensorBoard.                       |
 | `rocprofv1-stats` | Kernel execution stats.                                                     |
 | `rocprofv2-pmc`   | Profiling with performance counters ([configuration](config/rocprof.txt)).  |
-| `omniperf`        | Collect all performance counters.                                           |
-| `omnitrace`       | Application tracing.                                                        |
-| `omnistat`        | Low-overhead system metrics, sampled at 1s intervals.                       |
 
 ### Example Applications and Configuration Files
 
@@ -126,10 +128,10 @@ Change `$HOME/omnihub` to the installed location of OmniHub in your environment.
 sbatch job.slurm
 ```
 
-#### Infer Llama3.1 (405B) with a single-node execution on MI250s (Hugging Face) with Omnitrace and Omnistat
+#### Infer Llama3.1 (405B) with a single-node execution on MI250s (Hugging Face) with PyTorch Profiler traces
 
 ```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --model Meta-Llama-3.1-405B-Instruct-safetensors --app-config applications/hf-infer/config.yaml --tools omnitrace omnistat > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --model Meta-Llama-3.1-405B-Instruct-safetensors --app-config applications/hf-infer/config.yaml --tools pytorch-trace > job.slurm
 sbatch job.slurm
 ```
 

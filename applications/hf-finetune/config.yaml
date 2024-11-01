@@ -1,1 +1,2 @@
 entrypoint: finetune.py
+finetuned-model-dir: .

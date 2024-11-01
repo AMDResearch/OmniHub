@@ -12,6 +12,11 @@ from tqdm import tqdm
 
 import omnihub
 
+# Workaround to set the CIFAR-10 dataset URL
+torchvision.datasets.CIFAR10.url = (
+    "http://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
+)
+
 
 # Define a simple CNN
 class SimpleCNN(nn.Module):
@@ -42,9 +47,6 @@ class Inferencer:
         )
         parser.add_argument(
             "-m", "--model-dir", help="Path to the model", type=str, required=True
-        )
-        parser.add_argument(
-            "-o", "--output-dir", help="Path to store output", type=str, default="."
         )
 
         self.args = parser.parse_args(args=custom_args)

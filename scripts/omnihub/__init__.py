@@ -19,6 +19,14 @@ def setup_parser():
         formatter_class=ArgumentDefaultsHelpFormatter,
     )
 
+    parser.add_argument(
+        "-o",
+        "--output-dir",
+        type=str,
+        default=".",
+        help="Output directory (default: current directory)",
+    )
+
     # Optional arguments for manual distributed execution
     parser.add_argument("--master-addr", type=str)
     parser.add_argument("--master-port", type=str)
@@ -32,6 +40,17 @@ def setup_parser():
 
     # Tools
     parser.add_argument("--omnitrace", action="store_true", help="Enable omnitrace")
+    # PyTorch Profiler
+    parser.add_argument(
+        "--pytorch-profiler-stats",
+        action="store_true",
+        help="Enable PyTorch Profiler (Stats)",
+    )
+    parser.add_argument(
+        "--pytorch-profiler-trace",
+        action="store_true",
+        help="Enable PyTorch Profiler (Tensorboard trace)",
+    )
 
     # Configuration file
     parser.add_argument(
@@ -74,6 +93,15 @@ class Omnihub:
         # Parse known arguments, leaving the rest untouched
         self.args, self.extra_args = parser.parse_known_args()
 
+        if not os.path.exists(self.args.output_dir) or not os.path.isdir(
+            self.args.output_dir
+        ):
+            print(
+                f"Output directory {self.args.output_dir} does not exist or is not a directory"
+            )
+            parser.print_help()
+            sys.exit(1)
+
         if not os.path.exists(self.args.app_config) or not os.path.isfile(
             self.args.app_config
         ):
@@ -114,6 +142,10 @@ class Omnihub:
 
         if self.args.omnitrace:
             tools.tracers.enable_omnitrace()
+        if self.args.pytorch_profiler_stats:
+            tools.tracers.enable_pytorch_profiler_stats()
+        if self.args.pytorch_profiler_trace:
+            tools.tracers.enable_pytorch_profiler_trace()
 
     def run(self):
         if self.func:
