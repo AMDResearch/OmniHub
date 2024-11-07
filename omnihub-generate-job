@@ -75,6 +75,14 @@ required_group.add_argument(
     metavar="",
 )
 optional_group.add_argument(
+    "--app-args",
+    help="Application-specific command line arguments",
+    type=str,
+    required=False,
+    default="",
+    metavar="",
+)
+optional_group.add_argument(
     "--num-nodes", help="Number of nodes (default: 1)", type=int, default=1, metavar=""
 )
 optional_group.add_argument(
@@ -149,7 +157,8 @@ base_command = (
     " --model-dir={model_dir}"
     " --output-dir={results_dir}"
     " --app-config={omnihub_dir}/{app_config}"
-    " > {results_dir}/srun-\\$SLURM_PROCID.out"
+    + f" {args.app_args}"
+    + " > {results_dir}/srun-\\$SLURM_PROCID.out"
     " 2> {results_dir}/srun-\\$SLURM_PROCID.err"
 )
 

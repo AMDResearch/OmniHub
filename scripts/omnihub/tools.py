@@ -8,6 +8,8 @@ from contextlib import ExitStack
 
 import torch
 
+from . import distributed as dist
+
 
 # This class is used to enable/disable different tracers
 class Tracers:
@@ -31,6 +33,8 @@ class Tracers:
     def default_monitor_cm(self):
         try:
             import amdsmi
+
+            amdsmi.amdsmi_init()
         except ImportError:
             print("Unable to find amdsmi module")
             sys.exit(1)
@@ -50,14 +54,14 @@ class Tracers:
             output_dir, f"default_profiler_output_{node_id}_{local_rank}.json"
         )
 
-        if torch.distributed.is_initialized():
+        if dist.is_initialized():
             start_energies = [get_energy(local_rank)]
         else:
             start_energies = [get_energy(i) for i in range(torch.cuda.device_count())]
         start_time = time.time()
         yield
         end_time = time.time()
-        if torch.distributed.is_initialized():
+        if dist.is_initialized():
             end_energies = [get_energy(local_rank)]
         else:
             end_energies = [get_energy(i) for i in range(torch.cuda.device_count())]

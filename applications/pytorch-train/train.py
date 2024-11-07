@@ -135,5 +135,5 @@ class Trainer:
 
 
 @omnihub.entrypoint
-def run(args):
-    Trainer(args).run()
+def run(*args, **kwargs):
+    Trainer(*args, **kwargs).run()

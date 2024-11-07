@@ -24,8 +24,9 @@ def find_all_linear_names(model):
 
 
 class FineTuner:
-    def __init__(self, custom_args) -> None:
+    def __init__(self, custom_args, config) -> None:
         parser = ArgumentParser(
+            prog=os.path.basename(__file__),
             description="Finetuning using a Hugging Face model",
             formatter_class=ArgumentDefaultsHelpFormatter,
         )
@@ -33,14 +34,9 @@ class FineTuner:
             "-m", "--model-dir", help="Path to the model", type=str, required=True
         )
 
-        parser.add_argument(
-            "--finetuned-model-dir",
-            help="Path to the finetuned model directory",
-            type=str,
-            required=True,
-        )
-
         self.args = parser.parse_args(args=custom_args)
+
+        finetuned_model_dir = config.get("finetuned-model-dir", ".")
 
         if not os.path.exists(self.args.model_dir) or not os.path.isdir(
             self.args.model_dir
@@ -49,8 +45,8 @@ class FineTuner:
             parser.print_help()
             sys.exit(1)
 
-        if not os.path.exists(self.args.finetuned_model_dir) or not os.path.isdir(
-            self.args.finetuned_model_dir
+        if not os.path.exists(finetuned_model_dir) or not os.path.isdir(
+            finetuned_model_dir
         ):
             print("Output path does not exist")
             parser.print_help()
@@ -76,7 +72,7 @@ class FineTuner:
         )
 
         train_args = TrainingArguments(
-            output_dir=f"{self.args.finetuned_model_dir}/fine-tuned-models/{tuned_model_name}",
+            output_dir=f"{finetuned_model_dir}/fine-tuned-models/{tuned_model_name}",
             num_train_epochs=4,
             per_device_train_batch_size=2,
             gradient_accumulation_steps=1,
@@ -142,5 +138,5 @@ class FineTuner:
 
 
 @omnihub.entrypoint
-def run(args):
-    FineTuner(args).run()
+def run(*args, **kwargs):
+    FineTuner(*args, **kwargs).run()

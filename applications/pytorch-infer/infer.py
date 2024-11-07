@@ -129,5 +129,5 @@ class Inferencer:
 
 
 @omnihub.entrypoint
-def run(args):
-    Inferencer(args).run()
+def run(*args, **kwargs):
+    Inferencer(*args, **kwargs).run()

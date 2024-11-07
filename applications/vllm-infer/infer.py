@@ -17,7 +17,7 @@ def print_outputs(outputs):
 
 
 class Inferencer:
-    def __init__(self, custom_args) -> None:
+    def __init__(self, custom_args, config) -> None:
         parser = ArgumentParser(
             description="Inference using a vLLM model",
             formatter_class=ArgumentDefaultsHelpFormatter,
@@ -25,10 +25,9 @@ class Inferencer:
         parser.add_argument(
             "-m", "--model-dir", help="Path to the model", type=str, required=True
         )
-        parser.add_argument(
-            "--tensor-parallel-size", help="Tensor parallel size", type=int, default=-1
-        )
         self.args = parser.parse_args(args=custom_args)
+
+        tensor_parallel_size = config.get("tensor-parallel-size", -1)
 
         if not os.path.exists(self.args.model_dir) or not os.path.isdir(
             self.args.model_dir
@@ -41,8 +40,8 @@ class Inferencer:
             model=self.args.model_dir,
             # TODO/FIXME(aaji): TP does not work for MI250 and does not work reliably for MI300
             tensor_parallel_size=(
-                self.args.tensor_parallel_size
-                if self.args.tensor_parallel_size != -1
+                tensor_parallel_size
+                if tensor_parallel_size != -1
                 else torch.cuda.device_count()
             ),
             # pipeline_parallel_size=torch.cuda.device_count(),
@@ -97,5 +96,5 @@ class Inferencer:
 
 
 @omnihub.entrypoint
-def run(args):
-    Inferencer(args).run()
+def run(*args, **kwargs):
+    Inferencer(*args, **kwargs).run()

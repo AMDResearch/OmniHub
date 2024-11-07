@@ -112,16 +112,39 @@ class Omnihub:
         with open(self.args.app_config, "r") as config_file:
             config = yaml.safe_load(config_file)
 
-        entrypoint = config.get("entrypoint")
+        # Remove the entrypoint from the config and store it separately
+        entrypoint = config.pop("entrypoint", None)
         if not entrypoint:
             print("Entrypoint not specified in the configuration file")
             sys.exit(1)
 
-        # Add other key-value pairs from the config file to self.extra_args
-        for key, value in config.items():
-            if key != "entrypoint":
-                self.extra_args.append(f"--{key}")
-                self.extra_args.append(str(value))
+        # Update self.config with CLI args if they match. CLI args take precedence.
+        i = 0
+        extra_args_indices = []
+        while i < len(self.extra_args):
+            if "=" in self.extra_args[i]:
+                # Split the argument into key and value based on the first '=' and remove leading '--'
+                key, value = self.extra_args[i].split("=", 1)
+                key = key.lstrip("--")
+                indices = [i]
+                i += 1
+            else:
+                # Remove leading '--' and get the next argument as value
+                key = self.extra_args[i].lstrip("--")
+                value = self.extra_args[i + 1] if i + 1 < len(self.extra_args) else None
+                indices = [i, i + 1]
+                i += 2
+
+            # Update the config with the CLI args and store the indices to remove them from extra_args
+            if key in config:
+                config[key] = value
+                extra_args_indices.extend(indices)
+
+        # Remove the CLI args from the extra_args based on the indices that matched the config keys
+        self.extra_args = [
+            arg for i, arg in enumerate(self.extra_args) if i not in extra_args_indices
+        ]
+        self.config = config
 
         # Check if entrypoint is an absolute path. If not, make it relative to the config file.
         # Application writer is responsible to structuring the config file location and
@@ -149,7 +172,7 @@ class Omnihub:
 
     def run(self):
         if self.func:
-            self.func(self.extra_args)
+            self.func(self.extra_args, self.config)
         else:
             print("No function decorated with @omnihub.entrypoint found to execute.")
             sys.exit(1)

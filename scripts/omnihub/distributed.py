@@ -4,9 +4,13 @@ import sys
 import torch
 from torch import distributed as dist
 
+# Define _is_initialized as a global variable
+_is_initialized = False
+
 
 class Distributed:
     def __init__(self, args):
+        global _is_initialized
         self.manual_launch_ddp = args.manual_launch_ddp
         if self.manual_launch_ddp:
             local_rank = args.rank % torch.cuda.device_count()
@@ -30,6 +34,23 @@ class Distributed:
             print(f"Local rank: {local_rank}")
             print(f"Using device: {torch.cuda.current_device()}")
 
+        if all(
+            var in os.environ
+            for var in [
+                "RANK",
+                "WORLD_SIZE",
+                "MASTER_ADDR",
+                "MASTER_PORT",
+                "LOCAL_RANK",
+            ]
+        ):
+            _is_initialized = True
+
     def finalize(self):
         if self.manual_launch_ddp:
             dist.destroy_process_group()
+
+
+def is_initialized():
+    global _is_initialized
+    return _is_initialized
