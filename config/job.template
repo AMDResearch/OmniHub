@@ -56,6 +56,8 @@ if [[ ! -d $omnihub_dir ]]; then
 fi
 
 mkdir -p $results_dir
+mkdir $results_dir/logs
+mkdir $results_dir/tools
 cd $results_dir
 
 # Store a copy of the SLURM job script.
@@ -73,7 +75,7 @@ job:
   num-nodes: $$num_nodes
   num-gpus-per-node: $$num_gpus_per_node
   num-tasks-per-node: $$num_tasks_per_node
-  nodes: [$SLURM_NODELIST]
+  nodes: [$(sinfo -N -h -n $SLURM_NODELIST -o "%N" | paste -s -d, -)]
   container-platform: $$platform
   omnihub-directory: $$omnihub_dir
   omnihub-version: $(cd $omnihub_dir && git rev-parse --short HEAD)
@@ -91,6 +93,9 @@ tail -n +2 $results_dir/job.yaml
 
 echo "Results directory:"
 echo "  $results_dir"
+
+# Store a copy of the application configuration.
+cp $omnihub_dir/$app_config $results_dir/app.yaml
 
 $pre_execute_commands
 

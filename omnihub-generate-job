@@ -158,8 +158,8 @@ base_command = (
     " --output-dir={results_dir}"
     " --app-config={omnihub_dir}/{app_config}"
     + f" {args.app_args}"
-    + " > {results_dir}/srun-\\$SLURM_PROCID.out"
-    " 2> {results_dir}/srun-\\$SLURM_PROCID.err"
+    + " > {results_dir}/logs/srun-\\$SLURM_PROCID.out"
+    " 2> {results_dir}/logs/srun-\\$SLURM_PROCID.err"
 )
 
 manual_args = [
@@ -177,7 +177,7 @@ torchrun_prefix = (
     " --master_addr=$head_host"
     " --master_port=$head_port"
     " --node-rank=\\$SLURM_PROCID"
-    " --log-dir {results_dir}"
+    " --log-dir {results_dir}/logs"
     " --redirect 3"
 )
 

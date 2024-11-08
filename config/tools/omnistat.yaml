@@ -3,13 +3,13 @@ tools:
     pre-execute: |
       # Configure and start Omnistat
       export OMNISTAT_CONFIG=$shared_dir/tools/omnistat/omnihub.config
-      export OMNISTAT_PROMSERVER_DATADIR=$results_dir/omnistat/prometheus
+      export OMNISTAT_PROMSERVER_DATADIR=$results_dir/tools/omnistat/prometheus
       omnistat_dir=$shared_dir/tools/omnistat/venv/bin/
-      mkdir omnistat
-      cd omnistat
+      mkdir -p tools/omnistat
+      cd tools/omnistat
       $omnistat_dir/omnistat-usermode --start --interval 1
       cd -
     post-execute: |
       # Stop Omnistat
-      $omnistat_dir/omnistat-query --job $SLURM_JOB_ID --interval 1 > $results_dir/omnistat/report.txt
+      $omnistat_dir/omnistat-query --job $SLURM_JOB_ID --interval 1 > $results_dir/tools/omnistat/report.txt
       $omnistat_dir/omnistat-usermode --stop

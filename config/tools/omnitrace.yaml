@@ -3,7 +3,7 @@ tools:
     args:
       - --omnitrace
     env:
-      OMNITRACE_OUTPUT_PATH: '{results_dir}/omnitrace'
+      OMNITRACE_OUTPUT_PATH: '{results_dir}/tools/omnitrace'
 conflicts:
   - omniperf
   - rocprof
