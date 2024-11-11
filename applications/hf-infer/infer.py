@@ -17,7 +17,7 @@ def print_outputs(prompt, outputs):
 
 
 class Inferencer:
-    def __init__(self, custom_args) -> None:
+    def __init__(self, custom_args, config=None) -> None:
         parser = ArgumentParser(
             description="Inference using a Hugging Face model",
             formatter_class=ArgumentDefaultsHelpFormatter,

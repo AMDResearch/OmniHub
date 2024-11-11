@@ -40,7 +40,7 @@ class SimpleCNN(nn.Module):
 
 
 class Trainer:
-    def __init__(self, custom_args, epochs=2):
+    def __init__(self, custom_args, config=None, epochs=2):
         parser = ArgumentParser(
             description="Train a PyTorch model",
             formatter_class=ArgumentDefaultsHelpFormatter,

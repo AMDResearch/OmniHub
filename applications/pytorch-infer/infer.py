@@ -40,7 +40,7 @@ class SimpleCNN(nn.Module):
 
 
 class Inferencer:
-    def __init__(self, custom_args):
+    def __init__(self, custom_args, config=None):
         parser = ArgumentParser(
             description="Inference using a PyTorch model",
             formatter_class=ArgumentDefaultsHelpFormatter,
