@@ -1,6 +1,6 @@
 cluster:
   name: radha
-  models-dir: /shared/projs/omnihub/ml-models
+  models-dir: /shared/omnihub/models
   shared-dir: /home/shared/projs/omnihub
   results-dir: $HOME/results/omnihub/$SLURM_JOB_ID
   container-platforms:
