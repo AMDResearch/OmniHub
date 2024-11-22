@@ -86,6 +86,7 @@ job:
   head-node: $(hostname)
   head-address: $$head_host
   head-port: $$head_port
+  app-config: $$app_config
 EOF
 
 echo "Job configuration:"

@@ -196,6 +196,34 @@ If the run was successful, you will find the omnitrace output stats under
 `$HOME/results/omnihub/$SLURM_JOB_ID/omnitrace`, with which
 you may use [Perfetto](https://ui.perfetto.dev/) for interactive exploration.
 
+## Processing Results
+
+After running jobs generated with OmniHub, the results can be processed to
+extract summary information about each job in a standardized format.
+Processed executions can then be combined to generate a tabular index exported
+as a CSV file. Rows in the index represent different job executions, while
+columns identify key indicators from different sources. Currently supported
+sources for indexing are:
+- Job configuration options
+- Application configuration options
+- Application metrics (if optional application parser is available)
+- Default monitor metrics
+- Omnistat report metrics
+
+Use the following commands to process and index OmniHub executions:
+```
+./omnihub-process --results-dir /path/to/results/omnihub -j 4
+./omnihub-index --results-dir /path/to/results/omnihub
+```
+
+After processing and indexing, a `index.csv` file should be present in the top
+directory of the repository. The resulting CSV uses the first two rows as
+headers, and can be loaded as a Pandas Dataframe as follows:
+```
+import pandas
+df = pandas.read_csv("index.csv", header=[0,1], index_col=0)
+```
+
 ## Developer Corner
 
 If you want to contribute to OmniHub, make sure you read [this document](docs/developer.md) for developer pre-requisites.
