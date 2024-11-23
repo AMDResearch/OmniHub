@@ -1,0 +1,4 @@
+tools:
+  - name: omnihub-monitor
+    env:
+      OMNIHUB_MONITOR_OUTPUT_PATH: '{results_dir}/tools/omnihub-monitor'

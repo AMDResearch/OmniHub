@@ -1,4 +1,0 @@
-tools:
-  - name: default
-    env:
-      DEFAULT_PROFILER_OUTPUT_PATH: '{results_dir}/tools/default'

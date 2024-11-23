@@ -67,17 +67,17 @@ class AppLogParser(ProcessParser):
             subprocess.run([parser, self.execution_dir])
 
 
-class DefaultMonitorParser(ProcessParser):
+class OmnihubMonitorParser(ProcessParser):
     def parse(self):
-        default_monitor_dir = f"{self.execution_dir}/tools/default"
+        omnihub_monitor_dir = f"{self.execution_dir}/tools/omnihub-monitor"
         data = []
-        for p in pathlib.Path(default_monitor_dir).glob("*.json"):
+        for p in pathlib.Path(omnihub_monitor_dir).glob("*.json"):
             with open(p, "r") as f:
                 rank_data = json.load(f)
             data.append(rank_data)
 
         if len(data) == 0:
-            self.log.warning("Unable to parse default monitor data")
+            self.log.warning("Unable to parse default OmniHub monitor data")
             return
 
         start = min([i["StartTime"] for i in data])
@@ -93,7 +93,7 @@ class DefaultMonitorParser(ProcessParser):
             "GPU energy (kWh)": energy,
         }
 
-        with open(f"{self.processed_dir}/default-monitor.yaml", "w") as f:
+        with open(f"{self.processed_dir}/omnihub-monitor.yaml", "w") as f:
             yaml.dump(records, f)
 
 

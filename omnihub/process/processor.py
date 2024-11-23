@@ -23,8 +23,8 @@ def process_execution(execution_dir):
     if os.path.isfile(f"{execution_dir}/app.yaml"):
         parser_registry.append(parsers.AppConfigParser(execution_dir))
 
-    if os.path.isdir(f"{execution_dir}/tools/default"):
-        parser_registry.append(parsers.DefaultMonitorParser(execution_dir))
+    if os.path.isdir(f"{execution_dir}/tools/omnihub-monitor"):
+        parser_registry.append(parsers.OmnihubMonitorParser(execution_dir))
 
     if os.path.isdir(f"{execution_dir}/tools/omnistat"):
         parser_registry.append(parsers.OmnistatReportParser(execution_dir))

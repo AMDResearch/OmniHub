@@ -127,9 +127,9 @@ optional_group.add_argument(
 )
 
 args = parser.parse_args()
-# Add "default" to the list of tools if not already present
-if "default" not in args.tools:
-    args.tools.append("default")
+# Add "omnihub-monitor" to the list of tools if not already present
+if "omnihub-monitor" not in args.tools:
+    args.tools.append("omnihub-monitor")
 
 cluster_file = f"{config_dir}/{args.cluster}.yaml"
 

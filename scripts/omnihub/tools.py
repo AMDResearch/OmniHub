@@ -30,7 +30,7 @@ class Tracers:
     # Add other tools in future
 
     @contextlib.contextmanager
-    def default_monitor_cm(self):
+    def omnihub_monitor_cm(self):
         try:
             import amdsmi
 
@@ -46,12 +46,12 @@ class Tracers:
             energy /= 1000000000
             return energy
 
-        output_dir = os.getenv("DEFAULT_PROFILER_OUTPUT_PATH", ".")
+        output_dir = os.getenv("OMNIHUB_MONITOR_OUTPUT_PATH", ".")
         os.makedirs(output_dir, exist_ok=True)
         node_id = int(os.getenv("RANK", 0)) // torch.cuda.device_count()
         local_rank = int(os.getenv("LOCAL_RANK", 0))
         output_file = os.path.join(
-            output_dir, f"default_profiler_output_{node_id}_{local_rank}.json"
+            output_dir, f"omnihub_monitor_output_{node_id}_{local_rank}.json"
         )
 
         if dist.is_initialized():
@@ -169,8 +169,8 @@ tracers = Tracers()
 @contextlib.contextmanager
 def profile():
     with ExitStack() as stack:
-        # default profiler is always used
-        stack.enter_context(tracers.default_monitor_cm())
+        # default omnihub monitor is always used
+        stack.enter_context(tracers.omnihub_monitor_cm())
         if tracers.use_omnitrace:
             # enter omnitrace context manager
             stack.enter_context(tracers.get_omnitrace_cm())
