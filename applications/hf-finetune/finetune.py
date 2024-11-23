@@ -1,108 +1,199 @@
 import os
 import sys
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+from dataclasses import asdict, dataclass, field
 
 import bitsandbytes as bnb
 import torch
+import yaml
 from accelerate import DistributedType, PartialState
 from datasets import load_dataset
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-from transformers import AutoModelForCausalLM, BitsAndBytesConfig, TrainingArguments
-from trl import SFTTrainer
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+    HfArgumentParser,
+    TrainingArguments,
+)
+from trl import SFTConfig, SFTTrainer
 
 import omnihub
 
 
-def find_all_linear_names(model):
-    cls = bnb.nn.Linear4bit
-    lora_module_names = set()
-    for name, module in model.named_modules():
-        if isinstance(module, cls):
-            names = name.split(".")
-            lora_module_names.add(names[0] if len(names) == 1 else names[-1])
-    return list(lora_module_names)
+@dataclass
+class DataTrainingArguments:
+    dataset_name: str = field(
+        default=None,
+        metadata={"help": "The name of the dataset to use (via the datasets library)."},
+    )
+    dataset_config_name: str = field(
+        default=None,
+        metadata={
+            "help": "The configuration name of the dataset to use (via the datasets library)."
+        },
+    )
+    dataset_split: str = field(
+        default="train", metadata={"help": "The load dataset split."}
+    )
+    dataset_split_test_size: str = field(
+        default="train", metadata={"help": "The dataset train test split size."}
+    )
+    train_file: str = field(
+        default=None, metadata={"help": "The input training data file (a text file)."}
+    )
+    validation_file: str = field(
+        default=None,
+        metadata={
+            "help": "An optional input evaluation data file to evaluate the metrics (a text file)."
+        },
+    )
+    overwrite_cache: bool = field(
+        default=False,
+        metadata={"help": "Overwrite the cached training and evaluation sets"},
+    )
+    max_train_samples: int = field(
+        default=None,
+        metadata={
+            "help": "For debugging purposes or quicker training, truncate the number of training examples to this value if set."
+        },
+    )
+    max_eval_samples: int = field(
+        default=None,
+        metadata={
+            "help": "For debugging purposes or quicker training, truncate the number of evaluation examples to this value if set."
+        },
+    )
+
+
+@dataclass
+class LoRAArguments:
+    lora_alpha: int = field(
+        default=16, metadata={"help": "The alpha parameter for LoRA."}
+    )
+    lora_dropout: float = field(
+        default=0.1, metadata={"help": "The dropout rate for LoRA."}
+    )
+    r: int = field(default=64, metadata={"help": "The rank parameter for LoRA."})
+    bias: str = field(
+        default="none", metadata={"help": "The bias configuration for LoRA."}
+    )
+    task_type: str = field(
+        default="CAUSAL_LM", metadata={"help": "The task type for LoRA."}
+    )
+    target_modules: str = field(
+        default="all-linear", metadata={"help": "The target modules for LoRA."}
+    )
+
+
+@dataclass
+class ModelArguments:
+    args: dict = field(
+        default_factory=dict,
+        metadata={
+            "help": "dict of other args that can be passed to from_pretrained such as model_args"
+        },
+    )
+    pretrained_model_name_or_path: str = field(
+        default=(
+            os.getenv("OMNIHUB_MODEL_DIR")
+            or os.getenv("OMNIHUB_MODEL")
+            or "bert-base-uncased"
+        ),
+        metadata={
+            "help": "Path to pretrained model or model identifier from huggingface.co/models"
+        },
+    )
 
 
 class FineTuner:
-    def __init__(self, custom_args, config) -> None:
-        parser = ArgumentParser(
-            prog=os.path.basename(__file__),
-            description="Finetuning using a Hugging Face model",
-            formatter_class=ArgumentDefaultsHelpFormatter,
-        )
-        parser.add_argument(
-            "-m", "--model-dir", help="Path to the model", type=str, required=True
-        )
-
-        self.args = parser.parse_args(args=custom_args)
-
-        finetuned_model_dir = config.get("finetuned-model-dir", ".")
-
-        if not os.path.exists(self.args.model_dir) or not os.path.isdir(
-            self.args.model_dir
+    def get_dataset(self, DataTrainingArgs: DataTrainingArguments):
+        if DataTrainingArgs.dataset_name is not None:
+            dataset = load_dataset(
+                path=DataTrainingArgs.dataset_name,
+                split=DataTrainingArgs.dataset_split,
+            )
+        elif (
+            DataTrainingArgs.train_file is not None
+            and DataTrainingArgs.validation_file is not None
         ):
-            print("Model path does not exist")
-            parser.print_help()
-            sys.exit(1)
+            data_files = {
+                "train": DataTrainingArgs.train_file,
+                "validation": DataTrainingArgs.validation_file,
+            }
+            dataset = load_dataset("csv", data_files=data_files)
+        elif DataTrainingArgs.train_file is not None:
+            data_files = {"train": DataTrainingArgs.train_file}
+            dataset = load_dataset("csv", data_files=data_files)
+        else:
+            raise ValueError(
+                "You must specify either a dataset name or training/validation files."
+            )
 
-        if not os.path.exists(finetuned_model_dir) or not os.path.isdir(
-            finetuned_model_dir
+        # Optionally truncate the dataset
+        if DataTrainingArguments.dataset_split_test_size is not None:
+            dataset = dataset.train_test_split(test_size=0.1)["train"]
+        if DataTrainingArguments.max_train_samples is not None:
+            dataset["train"] = dataset["train"].select(
+                range(DataTrainingArguments.max_train_samples)
+            )
+        if (
+            DataTrainingArguments.max_eval_samples is not None
+            and "validation" in dataset
         ):
-            print("Output path does not exist")
-            parser.print_help()
-            sys.exit(1)
+            dataset["validation"] = dataset["validation"].select(
+                range(DataTrainingArguments.max_eval_samples)
+            )
+        return dataset
 
-        model_path = self.args.model_dir
+    def parse_args(self, supported_dataclass: list, custom_args: list, config: dict):
+        # Default: read from args from input config
+        for dataclass in supported_dataclass:
+            dataclass_name = dataclass.__name__
+            parser = HfArgumentParser([dataclass])
 
-        # New instruction dataset
-        guanaco_dataset = "mlabonne/guanaco-llama2-1k"
+            # Flatten config; if dataclass is not in config, default values are supplied
+            flat_config = {}
+            if dataclass_name in config:
+                flat_config = config[dataclass_name]
 
-        orig_model_name = os.path.split(os.path.dirname(self.args.model_dir))[-1]
-        tuned_model_name = f"{orig_model_name}-guanaco"
-        print(f"Fine-tuned model: {tuned_model_name}")
+            (parsed_dataclass,) = parser.parse_dict(flat_config, allow_extra_keys=True)
+            setattr(self, dataclass_name, parsed_dataclass)
 
-        train_dataset = load_dataset(guanaco_dataset, split="train")
-        train_dataset = train_dataset.train_test_split(test_size=0.1)["test"]
+        # turn custom_args into list of key value pairs
+        args_override = [(arg.lstrip("--")).split("=") for arg in custom_args]
 
-        quant_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=getattr(torch, "bfloat16"),
-            bnb_4bit_use_double_quant=True,
-        )
+        for key, val in args_override:
+            for dataclass in supported_dataclass:
+                dataclass_name = dataclass.__name__
 
-        train_args = TrainingArguments(
-            output_dir=f"{finetuned_model_dir}/fine-tuned-models/{tuned_model_name}",
-            num_train_epochs=4,
-            per_device_train_batch_size=2,
-            gradient_accumulation_steps=1,
-            ddp_find_unused_parameters=False,  # FIXME(aaji): option conflicts with torch DDP arg for manual launcher
-            optim="paged_adamw_8bit",
-            save_steps=25,
-            logging_steps=25,
-            learning_rate=2e-4,
-            weight_decay=0.001,
-            fp16=False,
-            bf16=False,
-            max_grad_norm=0.3,
-            max_steps=-1,
-            warmup_ratio=0.03,
-            group_by_length=True,
-            lr_scheduler_type="constant",
-            report_to=None,  # "tensorboard"
-            gradient_checkpointing_kwargs={"use_reentrant": False},
-        )
+                # replace attribute in self.<dataclass_name>
+                if hasattr(dataclass, key):
+                    attr = getattr(self, dataclass_name)
+                    setattr(attr, key, val)
+                    setattr(self, dataclass_name, attr)
+                    continue
+
+    def __init__(self, custom_args: list, config: dict) -> None:
+        supported_dataclasses = [
+            ModelArguments,
+            SFTConfig,
+            LoRAArguments,
+            DataTrainingArguments,
+            BitsAndBytesConfig,
+        ]
+        self.parse_args(supported_dataclasses, custom_args, config)
+
+        self.ModelArguments.args["quantization_config"] = self.BitsAndBytesConfig
 
         model = AutoModelForCausalLM.from_pretrained(
-            model_path,
-            torch_dtype=torch.bfloat16,
-            quantization_config=quant_config,
-            # attn_implementation="flash_attention_2",
+            self.ModelArguments.pretrained_model_name_or_path,
             device_map=(
                 "auto"
                 if PartialState().distributed_type is DistributedType.NO
                 else {"": PartialState().local_process_index}
             ),
+            **self.ModelArguments.args,
         )
 
         model.config.use_cache = False
@@ -111,25 +202,16 @@ class FineTuner:
         model.gradient_checkpointing_enable()
         model = prepare_model_for_kbit_training(model)
 
-        peft_config = LoraConfig(
-            lora_alpha=16,
-            lora_dropout=0.1,
-            target_modules=find_all_linear_names(model),
-            r=64,
-            bias="none",
-            task_type="CAUSAL_LM",
-        )
+        if "LoRAArguments" in config:
+            peft_config = LoraConfig(**asdict(self.LoRAArguments))
+            model = get_peft_model(model, peft_config)
 
-        model = get_peft_model(model, peft_config)
+        dataset = self.get_dataset(self.DataTrainingArguments)
 
         self.trainer = SFTTrainer(
             model=model,
-            train_dataset=train_dataset,
-            peft_config=peft_config,
-            dataset_text_field="text",
-            max_seq_length=None,
-            args=train_args,
-            packing=False,
+            train_dataset=dataset,
+            args=self.SFTConfig,
         )
 
     @omnihub.tools.profile()

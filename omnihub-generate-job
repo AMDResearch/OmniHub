@@ -157,8 +157,8 @@ base_command = (
     " --model-dir={model_dir}"
     " --output-dir={results_dir}"
     " --app-config={omnihub_dir}/{app_config}"
-    + f" {args.app_args}"
-    + " > {results_dir}/logs/srun-\\$SLURM_PROCID.out"
+    f" {args.app_args}"
+    " > {results_dir}/logs/srun-\\$SLURM_PROCID.out"
     " 2> {results_dir}/logs/srun-\\$SLURM_PROCID.err"
 )
 
@@ -196,7 +196,7 @@ docker_wrap = (
     " -v $shared_dir:$docker_shared_dir:ro"
     " -v $results_dir:$docker_results_dir"
     " -w $docker_results_dir"
-    " --env-file=<(env | grep -E 'SLURM|NCCL')"
+    " --env-file=<(env | grep -E 'SLURM|NCCL|OMNIHUB')"
     " --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     " --device=/dev/kfd --device=/dev/dri"
     " --network=host --ipc=host --shm-size 8G"
@@ -395,6 +395,16 @@ if platform == "docker":
     variable_map = {x[0]: x[1] for x in docker_variables}
     for variable, value in environment:
         docker_environment.append((variable, value.format(**variable_map)))
+
+# Expose model and model directory to applications as environment variables.
+# The OMNIHUB prefix also ensures these are exported to Docker containers.
+omnihub_environment = [
+    ("OMNIHUB_MODEL", "{model}"),
+    ("OMNIHUB_MODEL_DIR", "{model_dir}"),
+]
+pre_execute.append("# Set OmniHub environment variables")
+for variable, value in omnihub_environment:
+    pre_execute.append(f"export {variable}={value.format(**variable_map)}")
 
 # Additional variables that are needed to format base_command.
 variable_map["base_script"] = script
