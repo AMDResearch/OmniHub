@@ -29,3 +29,4 @@ cluster:
     - Meta-Llama-3.1-70B-Instruct-safetensors
     - Meta-Llama-3.1-405B-Instruct-safetensors
     - NVLM-D-72B
+    - AMD-OLMo-1B-SFT
