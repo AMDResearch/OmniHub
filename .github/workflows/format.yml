@@ -1,39 +1,39 @@
 name: Formatting
 run-name: formatting by ${{ github.actor }}
-
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   python-style:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref }}
-
       - name: Set up Python environment
         uses: actions/setup-python@v3
         with:
           python-version: '3.x'
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install black isort
-
       - name: Run black formatter
         uses: psf/black@stable
         with:
           use_pyproject: true
-
       - name: Run isort formatter
         uses: isort/isort-action@master
+      - name: yamllint
+        uses: reviewdog/action-yamllint@v1
+        with:
+          github_token: ${{ secrets.github_token }}
+          fail_on_error: true
+      - name: yamlfmt
+        uses: yk-lab/yamlfmt-action@v1.0.0
