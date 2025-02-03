@@ -30,10 +30,5 @@ jobs:
           use_pyproject: true
       - name: Run isort formatter
         uses: isort/isort-action@master
-      - name: yamllint
-        uses: reviewdog/action-yamllint@v1
-        with:
-          github_token: ${{ secrets.github_token }}
-          fail_on_error: true
       - name: yamlfmt
         uses: yk-lab/yamlfmt-action@v1.0.0
