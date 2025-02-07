@@ -63,26 +63,6 @@ class Inferencer:
             ignore_eos=True,
         )
 
-        # summarize something
-        conversation = [
-            {"role": "system", "content": "You are a helpful assistant"},
-            {
-                "role": "user",
-                "content": """Generate an approximately fifteen-word sentence
-                                that describes all this data:
-                                Midsummer House eatType restaurant;
-                                Midsummer House food Chinese;
-                                Midsummer House priceRange moderate;
-                                Midsummer House customer rating 3 out of 5;
-                                Midsummer House near All Bar One""",
-            },
-        ]
-        outputs = self.llm.chat(
-            conversation, sampling_params=sampling_params, use_tqdm=False
-        )
-        # Print the outputs.
-        print_outputs(outputs)
-
         # answer an open question
         prompts = [
             "What is a large language model? Explain it to a 10 year old.",

@@ -57,40 +57,6 @@ class Inferencer:
     def run(self):
         pipe = self.pipe
 
-        # summarize something
-        messages = [
-            {"role": "system", "content": "You are a helpful assistant!"},
-            {
-                "role": "user",
-                "content": """Generate an approximately fifteen-word sentence
-                                that describes all this data:
-                                Midsummer House eatType restaurant;
-                                Midsummer House food Chinese;
-                                Midsummer House priceRange moderate;
-                                Midsummer House customer rating 3 out of 5;
-                                Midsummer House near All Bar One""",
-            },
-        ]
-
-        prompt = pipe.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-
-        terminators = [
-            pipe.tokenizer.eos_token_id,
-            pipe.tokenizer.convert_tokens_to_ids("<|eot_id|>"),
-        ]
-
-        outputs = pipe(
-            prompt,
-            eos_token_id=terminators,
-            do_sample=True,
-            temperature=0.9,
-            top_p=0.6,
-        )
-
-        print_outputs(prompt, outputs)
-
         # answer an open question
         prompt = "What is a large language model? Explain it to a 10 year old."
         outputs = pipe(f"<s>[INST] {prompt} [/INST]", truncation=True)
