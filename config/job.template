@@ -81,8 +81,7 @@ job:
   omnihub-version: $(cd $omnihub_dir && git rev-parse --short HEAD)
   runner: $$runner
   tools: [$$tools]
-  model: $$model
-  model-directory: $$model_dir
+  models-directory: $$models_dir
   head-node: $(hostname)
   head-address: $$head_host
   head-port: $$head_port

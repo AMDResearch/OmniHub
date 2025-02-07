@@ -1,1 +1,19 @@
 entrypoint: infer.py
+BitsAndBytesConfigDataclass:
+  load_in_4bit: true
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_compute_dtype: bfloat16
+  bnb_4bit_use_double_quant: true
+  load_in_8bit: false
+  quant_method: bitsandbytes
+LoRAArguments:
+  lora_alpha: 15
+  lora_dropout: 0.1
+  r: 64
+  bias: none
+  task_type: CAUSAL_LM
+  target_modules: all-linear
+ModelArguments:
+  pretrained_model_name_or_path: Meta-Llama-3.1-8B-Instruct-safetensors
+  #   args:
+  #     attn_implementation: "flash_attention_2"

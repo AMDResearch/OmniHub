@@ -1,7 +1,8 @@
+import json
 import os
 import sys
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields, make_dataclass
 
 import bitsandbytes as bnb
 import torch
@@ -86,6 +87,23 @@ class LoRAArguments:
     )
 
 
+# turn BitsandBytesConfig class variables to fields, save as dataclass, so that they can be referenced by parser
+my_dict = BitsAndBytesConfig(quant_method="bitsandbytes").to_dict()
+BitsAndBytesConfigDataclass = make_dataclass(
+    "BitsAndBytesConfigDataclass",
+    ((k, type(v), field(default=v)) for k, v in my_dict.items()),
+    bases=(BitsAndBytesConfig,),
+)
+
+
+# Should work with python3.10
+# @dataclass
+# class LoRAArguments(LoraConfig):
+#     init_lora_weights: bool = field(default=True)
+#     layers_to_transform: int = field(default=None)
+#     loftq_config: dict = field(default_factory=dict)
+
+
 @dataclass
 class ModelArguments:
     args: dict = field(
@@ -95,18 +113,71 @@ class ModelArguments:
         },
     )
     pretrained_model_name_or_path: str = field(
-        default=(
-            os.getenv("OMNIHUB_MODEL_DIR")
-            or os.getenv("OMNIHUB_MODEL")
-            or "bert-base-uncased"
-        ),
+        default="bert-base-uncased",
         metadata={
             "help": "Path to pretrained model or model identifier from huggingface.co/models"
         },
     )
 
 
+# add alias to metadata (--dataclass_name.field)
+def add_aliases_to_fields(dataclass_type):
+    for f in fields(dataclass_type):
+        aliases = [f"--{dataclass_type.__name__}.{f.name}"]
+        metadata = dict(f.metadata)
+        metadata["aliases"] = aliases
+        f.metadata = metadata
+
+
+class CustomHfArgumentParser(HfArgumentParser):
+    def _add_dataclass_arguments(self, dataclass_type):
+        add_aliases_to_fields(dataclass_type)
+        super()._add_dataclass_arguments(dataclass_type)
+
+
 class FineTuner:
+    def __init__(self, custom_args: list, config: dict) -> None:
+        self.parse_args(custom_args, config)
+
+        default_model_path = self.ModelArguments.pretrained_model_name_or_path
+        omnihub_model_path = os.path.join(
+            os.getenv("OMNIHUB_MODELS_DIR"), default_model_path
+        )
+
+        # Check if the provided argument/config is an existing directory with
+        # an without the OMNIHUB_MODELS_DIR prefix. If no directory can be
+        # found, assume it's a model name to be loaded from Huggingface.
+        model_path = default_model_path
+        if not os.path.isdir(default_model_path) and os.path.isdir(omnihub_model_path):
+            model_path = omnihub_model_path
+
+        model = AutoModelForCausalLM.from_pretrained(
+            model_path,
+            device_map=(
+                "auto"
+                if PartialState().distributed_type is DistributedType.NO
+                else {"": PartialState().local_process_index}
+            ),
+            **self.ModelArguments.args,
+        )
+
+        model.config.use_cache = False
+        model.config.pretraining_tp = 1
+
+        model.gradient_checkpointing_enable()
+        model = prepare_model_for_kbit_training(model)
+
+        if hasattr(self, "LoRAArguments"):
+            model = get_peft_model(model, LoraConfig(**asdict(self.LoRAArguments)))
+
+        dataset = self.get_dataset(self.DataTrainingArguments)
+
+        self.trainer = SFTTrainer(
+            model=model,
+            train_dataset=dataset,
+            args=self.SFTConfig,
+        )
+
     def get_dataset(self, DataTrainingArgs: DataTrainingArguments):
         if DataTrainingArgs.dataset_name is not None:
             dataset = load_dataset(
@@ -146,73 +217,36 @@ class FineTuner:
             )
         return dataset
 
-    def parse_args(self, supported_dataclass: list, custom_args: list, config: dict):
-        # Default: read from args from input config
-        for dataclass in supported_dataclass:
-            dataclass_name = dataclass.__name__
-            parser = HfArgumentParser([dataclass])
+    def parse_args(self, custom_args: list, config: dict):
 
-            # Flatten config; if dataclass is not in config, default values are supplied
-            flat_config = {}
-            if dataclass_name in config:
-                flat_config = config[dataclass_name]
+        DataclassesToParse = [ModelArguments]
+        config_as_args = []
 
-            (parsed_dataclass,) = parser.parse_dict(flat_config, allow_extra_keys=True)
-            setattr(self, dataclass_name, parsed_dataclass)
+        for class_type, class_config in config.items():
 
-        # turn custom_args into list of key value pairs
-        args_override = [(arg.lstrip("--")).split("=") for arg in custom_args]
+            # Add classes to list, should only intantiate classes if present in args
+            DataclassesToParse.append(globals().get(class_type))
 
-        for key, val in args_override:
-            for dataclass in supported_dataclass:
-                dataclass_name = dataclass.__name__
+            for arg, value in class_config.items():
 
-                # replace attribute in self.<dataclass_name>
-                if hasattr(dataclass, key):
-                    attr = getattr(self, dataclass_name)
-                    setattr(attr, key, val)
-                    setattr(self, dataclass_name, attr)
-                    continue
+                # turn config into same format as custom _args
+                config_as_args.append(f"--{class_type}.{arg}={value}")
 
-    def __init__(self, custom_args: list, config: dict) -> None:
-        supported_dataclasses = [
-            ModelArguments,
-            SFTConfig,
-            LoRAArguments,
-            DataTrainingArguments,
-            BitsAndBytesConfig,
-        ]
-        self.parse_args(supported_dataclasses, custom_args, config)
+        DataclassesToParse = list(set(DataclassesToParse))
+        merged_args = config_as_args + custom_args
+        parser = CustomHfArgumentParser(DataclassesToParse)
 
-        self.ModelArguments.args["quantization_config"] = self.BitsAndBytesConfig
-
-        model = AutoModelForCausalLM.from_pretrained(
-            self.ModelArguments.pretrained_model_name_or_path,
-            device_map=(
-                "auto"
-                if PartialState().distributed_type is DistributedType.NO
-                else {"": PartialState().local_process_index}
-            ),
-            **self.ModelArguments.args,
+        parsed_args_as_dataclasses = parser.parse_args_into_dataclasses(
+            merged_args, return_remaining_strings=True
         )
+        for attribute, dataclass in zip(DataclassesToParse, parsed_args_as_dataclasses):
+            setattr(self, attribute.__name__, dataclass)
 
-        model.config.use_cache = False
-        model.config.pretraining_tp = 1
-
-        model.gradient_checkpointing_enable()
-        model = prepare_model_for_kbit_training(model)
-
-        if "LoRAArguments" in config:
-            peft_config = LoraConfig(**asdict(self.LoRAArguments))
-            model = get_peft_model(model, peft_config)
-
-        dataset = self.get_dataset(self.DataTrainingArguments)
-
-        self.trainer = SFTTrainer(
-            model=model,
-            train_dataset=dataset,
-            args=self.SFTConfig,
-        )
+        # convert BitsAndBytesConfigDataclass to hf BitsAndBytesConfig and add to ModelArguments
+        if hasattr(self, "BitsAndBytesConfigDataclass"):
+            self.ModelArguments.args["quantization_config"] = BitsAndBytesConfig(
+                **asdict(self.BitsAndBytesConfigDataclass)
+            )
 
     @omnihub.tools.profile()
     def run(self):

@@ -93,9 +93,6 @@ optional_group.add_argument(
     metavar="",
 )
 optional_group.add_argument(
-    "--model", help="Model to evaluate", type=str, required=False, metavar=""
-)
-optional_group.add_argument(
     "--platform",
     help="Container platform to execute in:\n\tapptainer (default)\n\tdocker",
     type=str,
@@ -154,7 +151,6 @@ base_prefix = []
 base_args = []
 base_command = (
     "{omnihub_dir}/scripts/{base_script} {base_args}"
-    " --model-dir={model_dir}"
     " --output-dir={results_dir}"
     " --app-config={omnihub_dir}/{app_config}"
     f" {args.app_args}"
@@ -267,7 +263,6 @@ models_dir = cluster["models-dir"]
 shared_dir = cluster["shared-dir"]
 results_dir = cluster["results-dir"]
 partitions = {x["partition"]: x for x in cluster["subsets"]}
-models = cluster["models"]
 
 cluster_name = cluster["name"]
 if not set(container_platforms).issubset(set(platforms)):
@@ -295,12 +290,6 @@ num_nodes = args.num_nodes
 max_num_nodes = partitions[partition_name]["num-nodes"]
 if num_nodes > max_num_nodes:
     print(f"Requested {num_nodes} nodes; selected subset only has {max_num_nodes}")
-    sys.exit(1)
-
-# If model argument is not present, default to first model in the cluster.
-model = args.model if args.model else models[0]
-if model not in models:
-    print(f"Model not available in the cluster: {model}")
     sys.exit(1)
 
 
@@ -350,8 +339,6 @@ variables = [
     ("shared_dir", f"{shared_dir}"),
     ("results_dir", f"{results_dir}"),
     ("app_config", f"{args.app_config}"),
-    ("model", f"{model}"),
-    ("model_dir", f"{models_dir}/{model}"),
     ("cluster", f"{args.cluster}"),
     ("partition", f"{partition_name}"),
     ("platform", f"{platform}"),
@@ -368,7 +355,6 @@ docker_variables = [
     ("models_dir", "/models"),
     ("shared_dir", "/shared"),
     ("results_dir", "/results"),
-    ("model_dir", f"/models/{model}"),
 ]
 
 # For completeness, make sure all missing variables in the Docker context have
@@ -399,8 +385,7 @@ if platform == "docker":
 # Expose model and model directory to applications as environment variables.
 # The OMNIHUB prefix also ensures these are exported to Docker containers.
 omnihub_environment = [
-    ("OMNIHUB_MODEL", "{model}"),
-    ("OMNIHUB_MODEL_DIR", "{model_dir}"),
+    ("OMNIHUB_MODELS_DIR", "{models_dir}"),
 ]
 pre_execute.append("# Set OmniHub environment variables")
 for variable, value in omnihub_environment:

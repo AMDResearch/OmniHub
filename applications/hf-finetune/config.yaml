@@ -4,7 +4,8 @@ SFTConfig:
   num_train_epochs: 1
   per_device_train_batch_size: 2
   gradient_accumulation_steps: 1
-  ddp_find_unused_parameters: false # FIXME(aaji): option conflicts with torch DDP arg for manual launcher
+  # FIXME(aaji): option conflicts with torch DDP arg for manual launcher
+  ddp_find_unused_parameters: false
   optim: paged_adamw_8bit
   save_steps: 25
   logging_steps: 25
@@ -18,19 +19,22 @@ SFTConfig:
   group_by_length: true
   lr_scheduler_type: constant
   report_to: none
-  gradient_checkpointing_kwargs: {use_reentrant: false}
+  # gradient_checkpointing_kwargs: "{'use_reentrant': false}"
   dataset_text_field: text
-  load_best_model_at_end: true # keep best model
-  save_strategy: "no" # dont save checkpoints; enclosed in quotes to load as string
+  # keep best model
+  load_best_model_at_end: true
+  # dont save checkpoints
+  save_strategy: "no"
 DataTrainingArguments:
   dataset_name: mlabonne/guanaco-llama2-1k
   dataset_split_test_size: 0.1
-BitsAndBytesConfig:
+BitsAndBytesConfigDataclass:
   load_in_4bit: true
   bnb_4bit_quant_type: nf4
   bnb_4bit_compute_dtype: bfloat16
   bnb_4bit_use_double_quant: true
   load_in_8bit: false
+  quant_method: bitsandbytes
 LoRAArguments:
   lora_alpha: 15
   lora_dropout: 0.1
@@ -38,6 +42,7 @@ LoRAArguments:
   bias: none
   task_type: CAUSAL_LM
   target_modules: all-linear
-# ModelArguments:
-#   args:
-#     attn_implementation: "flash_attention_2"
+ModelArguments:
+  pretrained_model_name_or_path: Meta-Llama-3.1-8B-Instruct-safetensors
+  #   args:
+  #     attn_implementation: "flash_attention_2"
