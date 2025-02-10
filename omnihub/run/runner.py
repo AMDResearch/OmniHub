@@ -1,4 +1,3 @@
-import functools
 import importlib.util
 import inspect
 import os
@@ -9,8 +8,8 @@ from enum import Enum
 
 import yaml
 
-from omnihub import distributed as dist
-from omnihub import tools
+import omnihub.tools
+from omnihub.run import distributed as dist
 
 
 def setup_parser():
@@ -63,21 +62,6 @@ def setup_parser():
     return parser
 
 
-def entrypoint(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        print(
-            f"Executing {func.__name__} with arguments {args} and keyword arguments {kwargs}"
-        )
-        result = func(*args, **kwargs)
-        print(f"Finished executing {func.__name__}")
-        return result
-
-    wrapper.__wrapped__ = func
-    wrapper.__qualname__ = "entrypoint"
-    return wrapper
-
-
 def find_decorated_function(module):
     decorated_functions = []
     for _, obj in inspect.getmembers(module):
@@ -87,7 +71,7 @@ def find_decorated_function(module):
     return decorated_functions[0] if decorated_functions else None
 
 
-class Omnihub:
+class OmnihubRunner:
     def __init__(self) -> None:
         parser = setup_parser()
         # Parse known arguments, leaving the rest untouched
@@ -164,11 +148,11 @@ class Omnihub:
         self.dist = dist.Distributed(args=self.args)
 
         if self.args.omnitrace:
-            tools.tracers.enable_omnitrace()
+            omnihub.tools.tracers.enable_omnitrace()
         if self.args.pytorch_profiler_stats:
-            tools.tracers.enable_pytorch_profiler_stats()
+            omnihub.tools.tracers.enable_pytorch_profiler_stats()
         if self.args.pytorch_profiler_trace:
-            tools.tracers.enable_pytorch_profiler_trace()
+            omnihub.tools.tracers.enable_pytorch_profiler_trace()
 
     def run(self):
         if self.func:
@@ -183,8 +167,13 @@ class Omnihub:
 
 @contextmanager
 def Init():
-    o = Omnihub()
+    o = OmnihubRunner()
     try:
         yield o
     finally:
         o.finalize()
+
+
+def main():
+    with Init() as o:
+        o.run()

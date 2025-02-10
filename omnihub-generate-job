@@ -131,7 +131,7 @@ if "omnihub-monitor" not in args.tools:
 cluster_file = f"{config_dir}/{args.cluster}.yaml"
 
 # Omnihub main script
-script = "omnihub.py"
+script = "omnihub-run"
 
 # Sets of options supported by the generator.
 platforms = {"apptainer", "docker"}
@@ -150,7 +150,7 @@ environment = []
 base_prefix = []
 base_args = []
 base_command = (
-    "{omnihub_dir}/scripts/{base_script} {base_args}"
+    "{omnihub_dir}/{base_script} {base_args}"
     " --output-dir={results_dir}"
     " --app-config={omnihub_dir}/{app_config}"
     f" {args.app_args}"

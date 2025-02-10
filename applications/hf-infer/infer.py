@@ -15,7 +15,8 @@ from transformers import (
     pipeline,
 )
 
-import omnihub
+import omnihub.run
+import omnihub.tools
 
 
 def print_outputs(prompt, outputs):
@@ -179,6 +180,6 @@ class Inferencer:
         print_outputs(prompt, outputs)
 
 
-@omnihub.entrypoint
+@omnihub.run.entrypoint
 def run(*args, **kwargs):
     Inferencer(*args, **kwargs).run()

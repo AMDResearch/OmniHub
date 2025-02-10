@@ -19,7 +19,8 @@ from transformers import (
 )
 from trl import SFTConfig, SFTTrainer
 
-import omnihub
+import omnihub.run
+import omnihub.tools
 
 
 @dataclass
@@ -253,6 +254,6 @@ class FineTuner:
         self.trainer.train()
 
 
-@omnihub.entrypoint
+@omnihub.run.entrypoint
 def run(*args, **kwargs):
     FineTuner(*args, **kwargs).run()

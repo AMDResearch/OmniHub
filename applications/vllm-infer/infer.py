@@ -5,7 +5,8 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 import torch
 from vllm import LLM, SamplingParams
 
-import omnihub
+import omnihub.run
+import omnihub.tools
 
 
 def print_outputs(outputs):
@@ -75,6 +76,6 @@ class Inferencer:
         print_outputs(outputs)
 
 
-@omnihub.entrypoint
+@omnihub.run.entrypoint
 def run(*args, **kwargs):
     Inferencer(*args, **kwargs).run()

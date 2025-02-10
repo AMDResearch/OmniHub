@@ -4,9 +4,17 @@ version = "0.1.0"
 requires-python = ">=3.9"
 dynamic = ["dependencies"]
 
+[project.scripts]
+omnihub-index="omnistat.index.indexer:main"
+omnihub-process="omnistat.process.processor:main"
+omnihub-run="omnistat.run.runner:main"
+
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["omnihub"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }

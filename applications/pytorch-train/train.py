@@ -10,7 +10,8 @@ import torchvision
 import torchvision.transforms as transforms
 from tqdm import tqdm
 
-import omnihub
+import omnihub.run
+import omnihub.tools
 
 # Workaround to set the CIFAR-10 dataset URL
 torchvision.datasets.CIFAR10.url = (
@@ -134,6 +135,6 @@ class Trainer:
         return self.model
 
 
-@omnihub.entrypoint
+@omnihub.run.entrypoint
 def run(*args, **kwargs):
     Trainer(*args, **kwargs).run()
