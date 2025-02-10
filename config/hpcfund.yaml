@@ -22,11 +22,3 @@ cluster:
       gpu: mi100
       num-gpus: 8
       num-nodes: 6
-  models:
-    - Meta-Llama-2-7B-Chat-safetensors
-    - Meta-Llama-3-8B-Instruct-safetensors
-    - Meta-Llama-3.1-8B-Instruct-safetensors
-    - Meta-Llama-3.1-70B-Instruct-safetensors
-    - Meta-Llama-3.1-405B-Instruct-safetensors
-    - NVLM-D-72B
-    - AMD-OLMo-1B-SFT

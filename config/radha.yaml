@@ -15,11 +15,3 @@ cluster:
       gpu: mi300
       num-gpus: 8
       num-nodes: 1
-  models:
-    - Meta-Llama-2-7B-Chat-safetensors
-    - Meta-Llama-2-13B-Chat-safetensors
-    - Meta-Llama-2-70B-Chat-safetensors
-    - Meta-Llama-3-8B-safetensors
-    - Meta-Llama-3-8B-Instruct-safetensors
-    - Meta-Llama-3-70B-safetensors
-    - Meta-Llama-3-70B-Instruct-safetensors
