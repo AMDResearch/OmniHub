@@ -97,8 +97,25 @@ echo "  $results_dir"
 # Store a copy of the application configuration.
 cp $omnihub_dir/$app_config $results_dir/app.yaml
 
+pre_start_ms=$(date +%s%3N)
 $pre_execute_commands
+pre_end_ms=$(date +%s%3N)
 
+execute_start_ms=$(date +%s%3N)
 $execute_commands
+exit_code=$?
+execute_end_ms=$(date +%s%3N)
 
+post_start_ms=$(date +%s%3N)
 $post_execute_commands
+post_end_ms=$(date +%s%3N)
+
+cat <<EOF > $results_dir/job-report.yaml
+pre_start_ms: $pre_start_ms
+pre_end_ms: $pre_end_ms
+execute_start_ms: $execute_start_ms
+execute_end_ms: $execute_end_ms
+exit_code: $exit_code
+post_start_ms: $post_start_ms
+post_end_ms: $post_end_ms
+EOF
