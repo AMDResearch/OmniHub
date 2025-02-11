@@ -109,6 +109,7 @@ class TraceManager:
             sys.exit(1)
 
         output_dir = os.getenv("PYTORCH_PROFILER_OUTPUT_PATH", ".")
+        verbose_trace = int(os.getenv("PYTORCH_PROFILER_TRACE_VERBOSE", "0"))
 
         # Example of TensorBoard trace handler
         tensorboard_handler = None
@@ -156,6 +157,14 @@ class TraceManager:
                 profiler.ProfilerActivity.CPU,
                 profiler.ProfilerActivity.CUDA,
             ],
+            with_stack=verbose_trace,
+            experimental_config=(
+                torch.profiler._ExperimentalConfig(
+                    verbose=verbose_trace,
+                )
+                if verbose_trace
+                else None
+            ),
             record_shapes=True,
             profile_memory=True,
             on_trace_ready=trace_handler,

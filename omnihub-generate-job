@@ -127,6 +127,9 @@ args = parser.parse_args()
 # Add "omnihub-monitor" to the list of tools if not already present
 if "omnihub-monitor" not in args.tools:
     args.tools.append("omnihub-monitor")
+# Remove "pytorch-trace" if "pytorch-trace-verbose" is present
+if "pytorch-trace" in args.tools and "pytorch-trace-verbose" in args.tools:
+    args.tools.remove("pytorch-trace")
 
 cluster_file = f"{config_dir}/{args.cluster}.yaml"
 

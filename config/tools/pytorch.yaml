@@ -9,6 +9,12 @@ tools:
       PYTORCH_PROFILER_OUTPUT_PATH: '{results_dir}/tools/pytorch-trace'
     args:
       - --pytorch-profiler-trace
+  - name: pytorch-trace-verbose
+    env:
+      PYTORCH_PROFILER_OUTPUT_PATH: '{results_dir}/tools/pytorch-trace-verbose'
+      PYTORCH_PROFILER_TRACE_VERBOSE: 1
+    args:
+      - --pytorch-profiler-trace
 conflicts:
   - omniperf
   - rocprof
