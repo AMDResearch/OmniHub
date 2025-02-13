@@ -1,2 +1,16 @@
 entrypoint: infer.py
-tensor-parallel-size: 1
+VllmArguments:
+  model: Meta-Llama-3.1-8B-Instruct-safetensors
+  tensor_parallel_size: 1
+SamplingParamsArguments:
+  n: 3
+  temperature: 0.8
+  top_p: 0.95
+  max_tokens: 256
+  skip_special_tokens: true
+  ignore_eos: true
+PromptsArguments:
+  prompts:
+    - "What is a large language model? Explain it to a 10 year old."
+    - "How does a neural network work?"
+    - "What are the benefits of using machine learning?"
