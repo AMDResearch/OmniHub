@@ -74,6 +74,7 @@ the cluster and `--app-config` points to the path to the application configurati
 | `--platform`    | **`apptainer`**, `docker`                 | Container platform for the execution; supported platforms in cluster configuration file. |
 | `--runner`      | `manual`, `torchrun`                      | Distributed runner. Required for multi-node executions.                                  |
 | `--tools`       | [List of tools](#list-of-supported-tools) | Space-separated list of tools to use.                                                    |
+| `--time`        |                                           | Time limit for the SLURM job as an integer followed by a time unit.                      |
 
 ### List of Supported Tools
 

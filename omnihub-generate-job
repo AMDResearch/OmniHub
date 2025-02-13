@@ -26,8 +26,10 @@
 #    automatically reformatted for different contexts.
 
 import argparse
+import datetime
 import os
 import pathlib
+import re
 import sys
 from string import Template
 
@@ -122,6 +124,13 @@ optional_group.add_argument(
     default=[],
     metavar="",
 )
+optional_group.add_argument(
+    "--time",
+    help="Time limit for the SLURM job as an integer followed by a time unit (default: 1h). Examples: 120s, 30m, 5h.",
+    type=str,
+    default="1h",
+    metavar="",
+)
 
 args = parser.parse_args()
 # Add "omnihub-monitor" to the list of tools if not already present
@@ -212,6 +221,9 @@ head_host_commands = {
     "radha": "$(dig +short $(hostname).amd.com)",
 }
 
+seconds_per_unit = {"s": 1, "m": 60, "h": 3600}
+
+
 # STEP 1. Basic validation of command line options.
 
 if not os.path.isdir(config_dir):
@@ -255,6 +267,15 @@ for tool in args.tools:
     if len(intersection) > 0:
         print(f"Incompatible tool combination: {tool}, {', '.join(intersection)}")
         sys.exit(1)
+
+time_pattern = f"[0-9]+[{''.join(seconds_per_unit.keys())}]"
+if not re.fullmatch(time_pattern, args.time):
+    print(f"Unexpected time limit format: {args.time}")
+    sys.exit(1)
+
+time_limit_seconds = int(args.time[:-1]) * seconds_per_unit[args.time[-1]]
+time_limit_delta = datetime.timedelta(seconds=time_limit_seconds)
+
 
 # STEP 2. Cluster-related validation, configuration and node selection.
 
@@ -441,7 +462,8 @@ substitutions = {
     "head_host_command": head_host_commands[args.cluster],
     "num_tasks_per_node": num_tasks_per_node,
     "num_gpus_per_node": num_gpus_per_node,
-    "time": "01:00:00",
+    "time_limit": time_limit_delta,
+    "time_limit_seconds": time_limit_seconds,
     "pre_execute_commands": "\n".join(pre_execute),
     "execute_commands": "\n".join(execute),
     "post_execute_commands": "\n".join(post_execute),

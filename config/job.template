@@ -4,7 +4,7 @@
 #SBATCH -e %j-slurm.err
 #SBATCH -N $num_nodes
 #SBATCH --tasks-per-node=$num_tasks_per_node
-#SBATCH -t $time
+#SBATCH -t $time_limit
 #SBATCH -p $partition
 
 $variables
@@ -73,6 +73,7 @@ job:
   cluster: $$cluster
   partition: $$partition
   num-nodes: $$num_nodes
+  time-limit-seconds: $time_limit_seconds
   num-gpus-per-node: $$num_gpus_per_node
   num-tasks-per-node: $$num_tasks_per_node
   nodes: [$(sinfo -N -h -n $SLURM_NODELIST -o "%N" | paste -s -d, -)]
