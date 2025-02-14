@@ -402,3 +402,13 @@ class OmnistatReportParser(ProcessParser):
 
         with open(f"{self.processed_dir}/{self.variant_name}.yaml", "w") as f:
             yaml.dump(records, f)
+
+
+class JobReportParser(ProcessParser):
+    def parse(self):
+        with open(f"{self.execution_dir}/job-report.yaml", "r") as f:
+            data = yaml.safe_load(f)
+        duration_ms = data["execute_end_ms"] - data["execute_start_ms"]
+        data["execute_duration_s"] = duration_ms / 1000
+        with open(f"{self.processed_dir}/job-report.yaml", "w") as f:
+            yaml.dump(data, f)

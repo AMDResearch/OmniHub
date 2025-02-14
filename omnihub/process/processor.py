@@ -20,6 +20,9 @@ def process_execution(execution_dir):
     parser_registry.append(parsers.JobConfigParser(execution_dir))
     parser_registry.append(parsers.AppLogParser(execution_dir))
 
+    if os.path.isfile(f"{execution_dir}/job-report.yaml"):
+        parser_registry.append(parsers.JobReportParser(execution_dir))
+
     if os.path.isfile(f"{execution_dir}/app.yaml"):
         parser_registry.append(parsers.AppConfigParser(execution_dir))
 
