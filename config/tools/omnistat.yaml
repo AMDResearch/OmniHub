@@ -3,7 +3,7 @@ tools:
     pre-execute: |
       # Configure and start Omnistat
       export OMNISTAT_CONFIG=$shared_dir/tools/omnistat/omnihub.config
-      export OMNISTAT_PROMSERVER_DATADIR=$results_dir/tools/omnistat/prometheus
+      export OMNISTAT_VICTORIA_DATADIR=$results_dir/tools/omnistat/data
       omnistat_dir=$shared_dir/tools/omnistat/venv/bin/
       mkdir -p tools/omnistat
       cd tools/omnistat
@@ -11,5 +11,6 @@ tools:
       cd -
     post-execute: |
       # Stop Omnistat
-      $omnistat_dir/omnistat-query --job $SLURM_JOB_ID --interval 1 > $results_dir/tools/omnistat/report.txt
-      $omnistat_dir/omnistat-usermode --stop
+      $omnistat_dir/omnistat-usermode --stopexporters
+      $omnistat_dir/omnistat-query --job $SLURM_JOB_ID --interval 1 --export $results_dir/tools/omnistat/export.csv > $results_dir/tools/omnistat/report.txt
+      $omnistat_dir/omnistat-usermode --stopserver
