@@ -4,7 +4,7 @@ tools:
   - name: rocprofv2-pmc
     prefix: 'rocprofv2 -i {omnihub_dir}/config/rocprof.txt -o samples -d {results_dir}/tools/rocprofv2-pmc/\$SLURM_PROCID'
   - name: rocprofv3-stats
-    prefix: 'rocprofv3 --stats --kernel-trace -o {results_dir}/tools/rocprofv3-stats/\$SLURM_PROCID/stats.csv -d {results_dir}/tools/rocprofv3-stats/\$SLURM_PROCID --'
+    prefix: 'rocprofv3 --stats --kernel-trace -d {results_dir}/tools/rocprofv3-stats/\$SLURM_PROCID --'
 conflicts:
   - omniperf
   - omnitrace

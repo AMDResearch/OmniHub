@@ -412,3 +412,72 @@ class JobReportParser(ProcessParser):
         data["execute_duration_s"] = duration_ms / 1000
         with open(f"{self.processed_dir}/job-report.yaml", "w") as f:
             yaml.dump(data, f)
+
+
+class RocprofStatsParser(ProcessParser):
+    def parse(self):
+        self.parse_columns = ["Percentage", "TotalDurationNs"]
+
+        # Store all per-rank dataframes to measure aggregated stats.
+        all_dfs = defaultdict(list)
+
+        # Generate per-rank data files with top kernel stats.
+        rank_dirs = pathlib.Path(
+            f"{self.execution_dir}/tools/rocprofv3-stats/"
+        ).iterdir()
+        for rank_dir in rank_dirs:
+            rank = rank_dir.name
+            columns = self._parse_rank(rank_dir)
+            for column, column_df in columns.items():
+                data = column_df.to_dict()[rank]
+                path = f"{self.processed_dir}/rocprofv3-stats.{column}.rank-{rank}.json"
+                with open(path, "w") as f:
+                    json.dump(data, f)
+                all_dfs[column].append(column_df)
+
+        # Generate aggregated mean and stddev files.
+        for column, dfs in all_dfs.items():
+            df = pd.concat(dfs, axis=1)
+
+            # Convert NaNs to zeros to calculate aggregated stats, assume that
+            # kernels that aren't present in certain ranks are negligible.
+            # While not entirely accurate, it's an initial approximation.
+            df = df.fillna(0)
+
+            mean = df.mean(axis=1).to_frame(name="mean")
+            data = mean.to_dict()["mean"]
+            path = f"{self.processed_dir}/rocprofv3-stats.{column}.mean.json"
+            with open(path, "w") as f:
+                json.dump(data, f)
+
+            std = df.std(axis=1).to_frame(name="std")
+            data = std.to_dict()["std"]
+            path = f"{self.processed_dir}/rocprofv3-stats.{column}.std.json"
+            with open(path, "w") as f:
+                json.dump(data, f)
+
+    def _parse_rank(self, rank_dir):
+        rank = rank_dir.name
+        stats_files = list(rank_dir.glob("*_kernel_stats.csv"))
+
+        if len(stats_files) == 0:
+            self.log.warning(f"Unable to find kernel stats for rank {rank}")
+            return
+
+        # Assume we only have one trace file per rank.
+        stats_file = stats_files[0]
+
+        # Select top 10 kernels.
+        df = pd.read_csv(stats_file)
+        df = df.head(10)
+
+        columns = {}
+        for column in self.parse_columns:
+            column_df = df[["Name", column]]
+            column_df = column_df.set_index(column_df.columns[0])
+            # Rename column to rank so it's easier to aggregate results;
+            # we alredy keep track of the column name in the dictionary.
+            column_df.columns = [rank]
+            columns[column] = column_df
+
+        return columns

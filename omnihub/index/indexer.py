@@ -1,6 +1,8 @@
 import argparse
+import json
 import os
 import pathlib
+from itertools import chain
 
 import pandas
 import yaml
@@ -9,8 +11,7 @@ formats = {"csv"}
 
 ignore_fields = [
     ("job", "omnihub-directory"),
-    ("job", "model-directory"),
-    ("job", "model-directory"),
+    ("job", "models-directory"),
     ("job", "nodes"),
     ("job", "head-node"),
     ("job", "head-address"),
@@ -41,11 +42,18 @@ def load_tabular_data(results_dir):
         job_id = execution.parent.name
         processed_dir = f"{results_dir}/{job_id}/processed-data"
 
+        formats = ["yaml", "json"]
+        path_generators = [pathlib.Path(processed_dir).glob(f"*.{f}") for f in formats]
+        tabular_files = chain.from_iterable(path_generators)
+
         tabular_data = []
-        for tabular_file in pathlib.Path(processed_dir).glob("*.yaml"):
+        for tabular_file in tabular_files:
             data_source = tabular_file.stem
             with open(tabular_file, "r") as f:
-                records = yaml.safe_load(f)
+                if tabular_file.suffix == ".json":
+                    records = json.load(f)
+                else:
+                    records = yaml.safe_load(f)
             df = pandas.DataFrame.from_records([records])
             df.columns = [[data_source] * len(df.columns), df.columns]
             tabular_data.append(df)

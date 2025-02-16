@@ -35,6 +35,9 @@ def process_execution(execution_dir):
     if os.path.isdir(f"{execution_dir}/tools/pytorch-trace-verbose"):
         parser_registry.append(parsers.PytorchTraceVerboseParser(execution_dir))
 
+    if os.path.isdir(f"{execution_dir}/tools/rocprofv3-stats"):
+        parser_registry.append(parsers.RocprofStatsParser(execution_dir))
+
     for parser in parser_registry:
         parser.parse()
 
