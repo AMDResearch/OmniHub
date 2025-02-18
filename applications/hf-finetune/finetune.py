@@ -57,23 +57,23 @@ class FineTuner:
             args=self.SFTConfig,
         )
 
-    def get_dataset(self, DataTrainingArgs: DataTrainingArguments):
-        if DataTrainingArgs.dataset_name is not None:
+    def get_dataset(self, dataTrainingArgs):
+        if dataTrainingArgs.dataset_name is not None:
             dataset = load_dataset(
-                path=DataTrainingArgs.dataset_name,
-                split=DataTrainingArgs.dataset_split,
+                path=dataTrainingArgs.dataset_name,
+                split=dataTrainingArgs.dataset_split,
             )
         elif (
-            DataTrainingArgs.train_file is not None
-            and DataTrainingArgs.validation_file is not None
+            dataTrainingArgs.train_file is not None
+            and dataTrainingArgs.validation_file is not None
         ):
             data_files = {
-                "train": DataTrainingArgs.train_file,
-                "validation": DataTrainingArgs.validation_file,
+                "train": dataTrainingArgs.train_file,
+                "validation": dataTrainingArgs.validation_file,
             }
             dataset = load_dataset("csv", data_files=data_files)
-        elif DataTrainingArgs.train_file is not None:
-            data_files = {"train": DataTrainingArgs.train_file}
+        elif dataTrainingArgs.train_file is not None:
+            data_files = {"train": dataTrainingArgs.train_file}
             dataset = load_dataset("csv", data_files=data_files)
         else:
             raise ValueError(
@@ -81,18 +81,16 @@ class FineTuner:
             )
 
         # Optionally truncate the dataset
-        if DataTrainingArguments.dataset_split_test_size is not None:
-            dataset = dataset.train_test_split(test_size=0.1)["train"]
-        if DataTrainingArguments.max_train_samples is not None:
+        if dataTrainingArgs.dataset_split_test_size is not None:
+            test_size = float(dataTrainingArgs.dataset_split_test_size)
+            dataset = dataset.train_test_split(test_size=test_size)["train"]
+        if dataTrainingArgs.max_train_samples is not None:
             dataset["train"] = dataset["train"].select(
-                range(DataTrainingArguments.max_train_samples)
+                range(dataTrainingArgs.max_train_samples)
             )
-        if (
-            DataTrainingArguments.max_eval_samples is not None
-            and "validation" in dataset
-        ):
+        if dataTrainingArgs.max_eval_samples is not None and "validation" in dataset:
             dataset["validation"] = dataset["validation"].select(
-                range(DataTrainingArguments.max_eval_samples)
+                range(dataTrainingArgs.max_eval_samples)
             )
         return dataset
 
