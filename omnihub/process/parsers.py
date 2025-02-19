@@ -7,8 +7,11 @@ import statistics
 import subprocess
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from enum import Enum
+from operator import itemgetter
 
-import pandas as pd
+import orjson
+import pandas
 import yaml
 
 from omnihub.process import util
@@ -68,233 +71,239 @@ class AppLogParser(ProcessParser):
             subprocess.run([parser, self.execution_dir])
 
 
-class PytorchTraceVerboseParser(ProcessParser):
+class PytorchTraceParser(ProcessParser):
     def parseTraceData(self, trace_data, output_file):
-        # Avoid YAML aliases
-        # https://stackoverflow.com/questions/13518819/avoid-references-in-pyyaml
-        yaml.Dumper.ignore_aliases = lambda *args: True
+        # Heuristics: for each (pid, tid) group of events, do the below
+        # 1. Ensure that each event has the required fields -- tid, pid, name, and args
+        # 2. Separate out all the kernel events because they will be merged later.
+        # 3. Processing of 'user_annotation' events:
+        # For each event, if it is a user annotation, push the name onto the annotation stack if it starts with 's:',
+        # or pop the name off the annotation stack if it starts with 'f:'. The nn_stack field of each forward event is the last element of the annotation stack.
+        # 4. Classification of 'backward' events:
+        # If the name contains the backward root prefix and not backward accumulate grad,
+        # then begin counting backward events based on the time stamp and duration of the first backward event.
+        # 4a. If one backward mode is followed by another, extend the existing backward time window instead of closing and reopening it.
+        # 4b. Each backward event in a time window is marked as backward and has the same sequence number as the first backward event of that window.
+        # 4c. If a backward event is not the root event of a sequence group, it is a child of the root event of that sequence group.
+        # 5. Classification of 'forward' events:
+        # The rest of the events are obviously all forward events.
+        # A forward event in the (pid, tid) group beginning with a new sequence number is the root event of this sequence group. Begin counting forward events
+        # based on the time stamp and duration of the root forward event.
+        # 5a. If one forward mode is followed by another, extend the existing forward time window instead of closing and reopening it.
+        # 5b. Each forward event in a time window is marked as forward and has the same sequence number as the root forward event of that window.
+        # 5c. If a forward event is not the root event of a sequence group, it is a child of the root event of that sequence group.
+        # 6. Merge the kernel events with the forward and backward events based on the external id.
+        # 6a. The kernel event then inherits the sequence number of the forward or backward event and the forward or backward event is marked as the parent of the kernel event.
+        # 7. Group the events by sequence number and direction (forward or backward) and build a nested structure.
+        # 8. Write the output to a YAML or JSON file.
 
-        # Extract and classify events
-        main_events, kernel_events, secondary_events = self._extract_events(trace_data)
+        # Collect kernel events and filter others
+        kernel_events = self._extract_kernel_events(trace_data)
+        trace_data["traceEvents"] = [
+            e
+            for e in trace_data.get("traceEvents", [])
+            if e.get("cat") in ["user_annotation", "cpu_op"]
+            and all(k in e for k in ("pid", "tid", "name", "args"))
+        ]
 
-        # Convert lists to DataFrames for easier processing
-        main_df = pd.DataFrame(main_events)
-        kernel_df = pd.DataFrame(kernel_events)
-        secondary_df = pd.DataFrame(secondary_events)
-
-        # Match secondary events with main events to update sequence and parent IDs
-        secondary_df = self._match_secondary_events(main_df, secondary_df)
-
-        # Update kernel events using external IDs from main and secondary events
-        kernel_df = self._update_kernel_events(main_df, secondary_df, kernel_df)
-
-        # Convert DataFrames back to lists
-        main_list = main_df.to_dict(orient="records")
-        secondary_list = secondary_df.to_dict(orient="records")
-        kernel_list = kernel_df.to_dict(orient="records")
-
-        # Group and nest events by sequence number and direction
-        grouped_events = self._group_events(main_list, secondary_list, kernel_list)
-
-        # Save grouped events to YAML using the C-based Dumper for performance
-        with open(f"{self.processed_dir}/{output_file}", "w") as f:
-            yaml.dump(
-                dict(grouped_events),
-                f,
-                default_flow_style=False,
-                Dumper=yaml.CDumper,
-                width=100,
-            )
-
-    def _extract_events(self, trace_data):
-        main_events = []
-        kernel_events = []
-        secondary_events = []
-        for event in trace_data.get("traceEvents", []):
-            is_backward = False
-            nn_stack = ""
-            if event.get("cat") in ["cpu_op", "kernel"]:
-                if "Call stack" in event["args"]:
-                    call_stack = event["args"]["Call stack"]
-                    call_stack_pairs = [
-                        (k.strip(), v.strip())
-                        for k, v in (
-                            pair.split(":")
-                            for pair in call_stack.split(";")
-                            if ":" in pair
-                        )
-                    ]
-                    # Keep only the nn.Module values to shorten the stack trace
-                    nn_stack = ";".join(
-                        [v for k, v in call_stack_pairs if k in "nn.Module"]
-                    )
-                    # Heuristic: if the call stack contains "_engine_run_backward", mark as backward.
-                    for key, value in call_stack_pairs:
-                        if "_engine_run_backward" in value:
-                            is_backward = True
-                            break
-
-                new_event = {
-                    "event_name": event.get("name"),
-                    "event_id": event["args"].get("Ev Idx", -1),
-                    "cat": event.get("cat"),
-                    "tid": event.get("tid"),
-                    "pid": event.get("pid"),
-                    "time_stamp": event.get("ts"),
-                    "end_time_stamp": event.get("ts") + event.get("dur", 0),
-                    "Sequence number": event["args"].get("Sequence number", -1),
-                    "External id": event["args"].get("External id", -1),
-                    "is_backward": is_backward,
-                    "Module stack": nn_stack,
-                    "parent_id": -1,
-                }
-
-                if new_event["Sequence number"] != -1:
-                    main_events.append(new_event)
-                elif new_event["cat"] == "kernel":
-                    kernel_events.append(new_event)
-                else:
-                    secondary_events.append(new_event)
-        return main_events, kernel_events, secondary_events
-
-    def _match_secondary_events(self, main_df, secondary_df):
-        # Sort main events and group them by thread and event IDs.
-        main_sorted = main_df.sort_values(["tid", "pid", "time_stamp"]).groupby(
-            ["tid", "pid"]
+        grouped_by_seq_mode = self._process_events(
+            trace_data["traceEvents"], kernel_events
         )
-        secondary_df = secondary_df.sort_values(["tid", "pid", "time_stamp"])
+        self._write_grouped_output(grouped_by_seq_mode, output_file)
 
-        seq_updates = []
-        parent_updates = []
+    def _extract_kernel_events(self, trace_data):
+        return [
+            {
+                "event_name": e["name"],
+                "event_id": e["args"].get("Ev Idx", -1),
+                "cat": e["cat"],
+                "tid": e["tid"],
+                "pid": e["pid"],
+                "time_stamp": e["ts"],
+                "end_time_stamp": e["ts"] + e.get("dur", 0),
+                "Sequence number": e["args"].get("Sequence number", -1),
+                "External id": e["args"].get("External id", -1),
+                "mode": "Forward",
+                "nn_stack": "",
+                "parent_id": -1,
+            }
+            for e in trace_data.get("traceEvents", [])
+            if e.get("cat") == "kernel"
+        ]
 
-        for (tid, pid), main_group in main_sorted:
-            secondary_mask = (
-                (secondary_df["tid"] == tid)
-                & (secondary_df["pid"] == pid)
-                & (secondary_df["Sequence number"] == -1)
-            )
-            secondary_subset = secondary_df[secondary_mask]
-            if secondary_subset.empty or main_group.empty:
+    def _process_events(self, events, kernel_events):
+        BACKWARD_ROOT_PREFIX = "autograd::engine::evaluate_function:"
+
+        events.sort(key=itemgetter("pid", "tid", "ts"))
+
+        annotation_stack = []
+        external_map = {}
+        seq_module_map = defaultdict(lambda: "Unknown")
+
+        class Mode(Enum):
+            FORWARD = "Forward"
+            BACKWARD = "Backward"
+
+            def __str__(self):
+                return self.value
+
+        active_mode, seq_end, current_seq, current_root = Mode.FORWARD, -1, -1, -1
+        grouped_by_seq_mode = defaultdict(lambda: {"Forward": [], "Backward": []})
+
+        for e in events:
+            if e["cat"] == "user_annotation":
+                self._update_annotation_stack(e["name"], annotation_stack)
                 continue
 
-            kvals = main_group[
-                ["time_stamp", "end_time_stamp", "Sequence number", "event_id"]
-            ].values
+            new_event = self._build_cpu_op_event(e, annotation_stack, str(Mode.FORWARD))
+            name, start, duration = e["name"], e["ts"], e.get("dur", 0)
 
-            kidx = 0
-            for uidx, urow in secondary_subset.iterrows():
-                while kidx < len(kvals) and kvals[kidx][1] < urow["time_stamp"]:
-                    kidx += 1
-                if (
-                    kidx < len(kvals)
-                    and kvals[kidx][0] <= urow["time_stamp"]
-                    and kvals[kidx][1] >= urow["end_time_stamp"]
-                ):
-                    seq_updates.append((uidx, kvals[kidx][2]))
-                    parent_updates.append((uidx, kvals[kidx][3]))
+            # update sequence number, parent id, and mode fields if needed
+            if BACKWARD_ROOT_PREFIX in name and "AccumulateGrad" not in name:
+                if active_mode != Mode.BACKWARD:
+                    # beginning of backward sequence
+                    active_mode = Mode.BACKWARD
+                    seq_end = start + duration
+                    current_seq = new_event["Sequence number"]
+                    current_root = new_event["event_id"]
+                else:
+                    # if we are in backward mode, extend the current backward sequence
+                    if start + duration > seq_end:
+                        # _active_mode remains BACKWARD
+                        seq_end, current_seq = (
+                            start + duration,
+                            new_event["Sequence number"],
+                        )
+                        current_root = new_event["event_id"]
+                new_event["mode"] = str(Mode.BACKWARD)
+                self._group_events_by_sequence(new_event, grouped_by_seq_mode)
+                continue
+            else:
+                if active_mode == Mode.BACKWARD and start > seq_end:
+                    # end the sequence if current event is after the end of the backward sequence
+                    active_mode, seq_end, current_seq, current_root = (
+                        Mode.FORWARD,
+                        -1,
+                        -1,
+                        -1,
+                    )
+                elif active_mode == Mode.BACKWARD:
+                    # continue in backward mode, mark the event as a child of the root event
+                    new_event["parent_id"] = current_root
+                    new_event["mode"] = str(Mode.BACKWARD)
+                    new_event["Sequence number"] = current_seq
+                    external_map[new_event["External id"]] = (
+                        current_seq,
+                        new_event["event_id"],
+                        new_event["mode"],
+                    )
+                    self._group_events_by_sequence(new_event, grouped_by_seq_mode)
+                    continue
 
-        for idx, seq_val in seq_updates:
-            secondary_df.at[idx, "Sequence number"] = seq_val
-        for idx, parent_val in parent_updates:
-            secondary_df.at[idx, "parent_id"] = parent_val
-        return secondary_df
+            assert active_mode == Mode.FORWARD
+            if seq_end == -1:
+                # beginning of forward sequence
+                seq_end = start + duration
+                current_seq = new_event["Sequence number"]
+                current_root = new_event["event_id"]
+            else:
+                # extend the current forward sequence
+                if start + duration > seq_end:
+                    seq_end, current_seq = (
+                        start + duration,
+                        new_event["Sequence number"],
+                    )
+                    current_root = new_event["event_id"]
+                else:
+                    # if the current event is within the time window of the current forward sequence,
+                    # mark it as a child of the root event
+                    new_event["parent_id"] = current_root
+                    new_event["Sequence number"] = current_seq
 
-    def _update_kernel_events(self, main_df, secondary_df, kernel_df):
-        # Combine main and secondary events to map External id to sequence number.
-        ext_df = pd.concat(
-            [
-                main_df[["External id", "Sequence number"]],
-                secondary_df[["External id", "Sequence number"]],
-            ]
-        ).drop_duplicates()
-
-        kernel_df = kernel_df.merge(
-            ext_df,
-            on="External id",
-            how="left",
-            suffixes=("", "_updated"),
-        )
-        kernel_df["Sequence number"] = kernel_df["Sequence number_updated"]
-        kernel_df = kernel_df.drop(columns=["Sequence number_updated"])
-
-        # Map External id to update parent_id from main events.
-        main_map = (
-            main_df.sort_values("time_stamp")
-            .drop_duplicates(subset=["External id"], keep="last")
-            .rename(columns={"event_id": "known_parent_id"})
-        )
-        main_map = main_map[["External id", "known_parent_id"]]
-        kernel_df = kernel_df.merge(
-            main_map, on="External id", how="left", suffixes=("", "_updated")
-        )
-        kernel_df["parent_id"] = kernel_df["known_parent_id"].fillna(-1).astype(int)
-        kernel_df = kernel_df.drop(columns=["known_parent_id"])
-
-        # Map External id to update parent_id from secondary events.
-        secondary_map = (
-            secondary_df.sort_values("time_stamp")
-            .drop_duplicates(subset=["External id"], keep="last")
-            .rename(columns={"event_id": "known_parent_id"})
-        )
-        secondary_map = secondary_map[["External id", "known_parent_id"]]
-        kernel_df = kernel_df.merge(
-            secondary_map, on="External id", how="left", suffixes=("", "_updated")
-        )
-        kernel_df["parent_id"] = kernel_df["known_parent_id"].fillna(-1).astype(int)
-        kernel_df = kernel_df.drop(columns=["known_parent_id"])
-
-        return kernel_df
-
-    def _group_events(self, main_list, secondary_list, kernel_list):
-        # Combine main, secondary, and kernel events.
-        all_events = main_list + secondary_list + kernel_list
-
-        # Build a mapping from sequence number to module using main events only.
-        seq_to_module = {}
-        for event in main_list:
-            seq = (
-                int(float(event["Sequence number"]))
-                if event["Sequence number"] is not None
-                else -1
+            external_map[new_event["External id"]] = (
+                current_seq,
+                new_event["event_id"],
+                new_event["mode"],
             )
-            if event["Module stack"] and not event["is_backward"]:
-                seq_to_module[seq] = event["Module stack"]
+            if (
+                new_event["Sequence number"] not in seq_module_map
+                and new_event["nn_stack"]
+            ):
+                seq_module_map[new_event["Sequence number"]] = new_event["nn_stack"]
+            self._group_events_by_sequence(new_event, grouped_by_seq_mode)
 
-        grouped = defaultdict(lambda: {"Forward": [], "Backward": []})
-        for event in all_events:
-            seq = (
-                int(float(event["Sequence number"]))
-                if pd.notna(event["Sequence number"])
-                else -1
-            )
-            torch_module = seq_to_module.get(seq, "Unknown")
-            key = f"Seq: {seq}; Stack: {torch_module}"
-            key = key if len(key) <= 120 else key[:120]
-            direction = "Backward" if event["is_backward"] else "Forward"
-            grouped[key][direction].append(event)
+        self._merge_kernel_events(kernel_events, external_map, grouped_by_seq_mode)
+        self._rename_keys_with_seq_module_map(seq_module_map, grouped_by_seq_mode)
+        self._sort_and_build_nested_events(grouped_by_seq_mode)
+        return grouped_by_seq_mode
 
-        # For each subgroup, sort events by time_stamp and build a nested structure.
+    def _update_annotation_stack(self, name, stack):
+        if name.startswith("s:"):
+            stack.append(name)
+        elif name.startswith("f:") and stack:
+            stack.pop()
+
+    def _build_cpu_op_event(self, e, annotation_stack, mode):
+        nn_stack = annotation_stack[-1][2:] if annotation_stack else ""
+        return {
+            "event_name": e["name"],
+            "event_id": e["args"].get("Ev Idx", -1),
+            "cat": e["cat"],
+            "tid": e["tid"],
+            "pid": e["pid"],
+            "time_stamp": e["ts"],
+            "end_time_stamp": e["ts"] + e.get("dur", 0),
+            "Sequence number": e["args"].get("Sequence number", -1),
+            "External id": e["args"].get("External id", -1),
+            "mode": mode,
+            "nn_stack": nn_stack,
+            "parent_id": -1,
+        }
+
+    def _group_events_by_sequence(self, event, grouped):
+        key, direction = event["Sequence number"], event["mode"]
+        grouped[key][direction].append(event)
+
+    def _merge_kernel_events(self, kernel_events, external_map, grouped):
+        for k in kernel_events:
+            eid = k["External id"]
+            if eid in external_map:
+                seq_num, parent_id, mode = external_map[eid]
+                k["Sequence number"] = seq_num
+                k["parent_id"] = parent_id
+                k["mode"] = mode
+                grouped[seq_num][mode].append(k)
+
+    def _rename_keys_with_seq_module_map(self, seq_module_map, grouped):
+        for seq_num in list(grouped.keys()):
+            module_name = seq_module_map.get(seq_num, "Unknown")
+            new_key = f"{seq_num}; Stack: {module_name}"
+            new_key = new_key if len(new_key) <= 120 else new_key[:120]
+            grouped[new_key] = grouped.pop(seq_num)
+
+    def _sort_and_build_nested_events(self, grouped):
         for key, directions in grouped.items():
             for direction, events in directions.items():
                 sorted_events = sorted(events, key=lambda x: x["time_stamp"])
                 grouped[key][direction] = self._build_nested_structure(sorted_events)
 
-        return grouped
+    def _write_grouped_output(self, grouped_by_seq_mode, output_file):
+        path_json = f"{self.processed_dir}/{output_file.replace('.yaml', '.json')}"
+        with open(path_json, "wb") as f:
+            f.write(orjson.dumps(grouped_by_seq_mode, option=orjson.OPT_INDENT_2))
 
     def _build_nested_structure(self, events):
-        # Create a lookup for events by event_id.
-        event_dict = {event["event_id"]: event for event in events}
+        event_dict = {e["event_id"]: e for e in events}
         root_events = []
-        for event in events:
-            parent = event["parent_id"]
+        for e in events:
+            parent = e["parent_id"]
             if parent == -1:
-                root_events.append(event)
+                root_events.append(e)
             else:
                 parent_event = event_dict.get(parent)
                 if parent_event:
-                    parent_event.setdefault("successors", []).append(event)
+                    parent_event.setdefault("successors", []).append(e)
 
-        # Recursively format each event.
         def format_event(event):
             formatted = {event["cat"]: event["event_name"]}
             if event.get("successors"):
@@ -306,12 +315,12 @@ class PytorchTraceVerboseParser(ProcessParser):
         return [format_event(event) for event in root_events]
 
     def parse(self):
-        pytorch_trace_dir = f"{self.execution_dir}/tools/pytorch-trace-verbose"
+        pytorch_trace_dir = f"{self.execution_dir}/tools/pytorch-trace"
         trace_files = pathlib.Path(pytorch_trace_dir).glob("*.pt.trace.json")
         for trace_file in trace_files:
             with open(trace_file, "r") as f:
                 trace_data = json.load(f)
-            if not trace_data:
+            if not trace_data or "traceEvents" not in trace_data:
                 self.log.warning(
                     f"Unable to parse PyTorch trace data from {trace_file}"
                 )

@@ -101,6 +101,27 @@ class TraceManager:
 
         return profile()
 
+    def _setup_pytorch_profiler(self):
+        # Define forward pre-hook
+        def forward_pre_hook(module, input):
+            if not hasattr(module, "call_stack"):
+                module.call_stack = type(module).__name__
+
+            for name, child in module.named_children():
+                if not hasattr(child, "call_stack"):
+                    child.call_stack = f"{module.call_stack}.{name}"
+
+            with torch.profiler.record_function(f"s:{module.call_stack}"):
+                pass
+
+        # Define forward hook
+        def forward_hook(module, input, output):
+            with torch.profiler.record_function(f"f:{module.call_stack}"):
+                pass
+
+        torch.nn.modules.module.register_module_forward_pre_hook(forward_pre_hook)
+        torch.nn.modules.module.register_module_forward_hook(forward_hook)
+
     def get_pytorch_profiler_cm(self):
         try:
             import torch.profiler as profiler
@@ -109,7 +130,8 @@ class TraceManager:
             sys.exit(1)
 
         output_dir = os.getenv("PYTORCH_PROFILER_OUTPUT_PATH", ".")
-        verbose_trace = int(os.getenv("PYTORCH_PROFILER_TRACE_VERBOSE", "0"))
+
+        self._setup_pytorch_profiler()
 
         # Example of TensorBoard trace handler
         tensorboard_handler = None
@@ -157,14 +179,6 @@ class TraceManager:
                 profiler.ProfilerActivity.CPU,
                 profiler.ProfilerActivity.CUDA,
             ],
-            with_stack=verbose_trace,
-            experimental_config=(
-                torch.profiler._ExperimentalConfig(
-                    verbose=verbose_trace,
-                )
-                if verbose_trace
-                else None
-            ),
             record_shapes=True,
             profile_memory=True,
             on_trace_ready=trace_handler,
