@@ -5,9 +5,9 @@ requires-python = ">=3.9"
 dynamic = ["dependencies"]
 
 [project.scripts]
-omnihub-index="omnistat.index.indexer:main"
-omnihub-process="omnistat.process.processor:main"
-omnihub-run="omnistat.run.runner:main"
+omnihub-index="omnihub.index.indexer:main"
+omnihub-process="omnihub.process.processor:main"
+omnihub-run="omnihub.run.runner:main"
 
 [build-system]
 requires = ["setuptools"]
