@@ -1,0 +1,7 @@
+entrypoint: benchmark_throughput.py
+model: Meta-Llama-3.1-8B-Instruct-safetensors
+input_len: 256
+output_len: 256
+dtype: auto
+kv-cache-dtype: auto
+output_json: throughput_results.json

@@ -1,0 +1,12 @@
+entrypoint: benchmark_latency.py
+model: Meta-Llama-3.1-8B-Instruct-safetensors
+tensor_parallel_size: 1
+load_format: dummy
+num_iters_warmup: 5
+num_iters: 15
+input_len: 32
+output_len: 128
+batch_size: 8
+dtype: auto
+kv-cache-dtype: auto
+output_json: latency_results.json
