@@ -12,6 +12,7 @@ from tqdm import tqdm
 
 import omnihub.run
 import omnihub.tools
+from omnihub.run.arguments import parse_config
 
 # Workaround to set the CIFAR-10 dataset URL
 torchvision.datasets.CIFAR10.url = (
@@ -42,24 +43,26 @@ class SimpleCNN(nn.Module):
 
 class Inferencer:
     def __init__(self, custom_args, config=None):
-        parser = ArgumentParser(
-            description="Inference using a PyTorch model",
-            formatter_class=ArgumentDefaultsHelpFormatter,
-        )
-        parser.add_argument(
-            "-m", "--model-dir", help="Path to the model", type=str, required=True
+        self._parse_config(config, custom_args)
+
+        default_model_path = self.ModelArguments.pretrained_model_name_or_path
+        omnihub_model_path = os.path.join(
+            os.getenv("OMNIHUB_MODELS_DIR"), default_model_path
         )
 
-        self.args = parser.parse_args(args=custom_args)
+        # Check if the provided argument/config is an existing directory with
+        # an without the OMNIHUB_MODELS_DIR prefix. If no directory can be
+        # found, assume it's a model name to be loaded from Huggingface.
+        model_path = default_model_path
+        if not os.path.isdir(default_model_path) and os.path.isdir(omnihub_model_path):
+            model_path = omnihub_model_path
 
-        if not os.path.exists(self.args.model_dir) or not os.path.isdir(
-            self.args.model_dir
-        ):
+        if not os.path.exists(model_path) or not os.path.isdir(model_path):
             print("Model path does not exist")
             parser.print_help()
             sys.exit(1)
 
-        model_path = f"{self.args.model_dir}/cifar_net.pth"
+        model_path = f"{model_path}/cifar_net.pth"
 
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print(f"Using device: {device}")
@@ -108,6 +111,12 @@ class Inferencer:
         self.testloader = testloader
         self.classes = classes
         self.device = device
+
+    def _parse_config(self, config: dict, custom_args: list):
+        populated_dataclasses = parse_config(config, custom_args)
+
+        for i in populated_dataclasses:
+            setattr(self, i.__class__.__name__, i)
 
     @omnihub.tools.profile()
     def run(self):
