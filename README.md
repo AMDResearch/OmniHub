@@ -14,9 +14,12 @@ Our scripts are very user-friendly where you can mix-and-match the models, tasks
 
 **ML Models**
 
-- Llama2 (7B, 13B, 70B)
-- Llama3 (8B, 70B)
-- Llama3.1 (8B, 70B, 405B)
+- Llama (v2-v3.3, 3B-405B)
+- DeepSeek-R1
+- AMD-OLMo (1B)
+- Mistral (7B-24B)
+- Qwen (v2.5-7B)
+- NVLM (72B)
 
 See [here](docs/models.md) for more details on the available ML models on Radha and the HPC Fund clusters.
 
@@ -33,8 +36,8 @@ See [here](docs/models.md) for more details on the available ML models on Radha 
 
 **Tools**
 
-- [rocprof](https://github.com/ROCm/rocprofiler)
-- [omniperf](https://github.com/ROCm/omniperf)
+- [rocprof](https://github.com/ROCm/rocprofiler)/[omniperf](https://github.com/ROCm/omniperf)
+- [PyTorch Profiler](https://pytorch.org/docs/stable/profiler.html)
 - [omnitrace](https://github.com/ROCm/omnitrace)
 - [omnistat](https://github.com/AMDResearch/omnistat/)
 
