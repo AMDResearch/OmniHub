@@ -102,8 +102,12 @@ class TraceManager:
         return profile()
 
     def _setup_pytorch_profiler(self):
+        pre_hook_counter = 0
+
         # Define forward pre-hook
         def forward_pre_hook(module, input):
+            nonlocal pre_hook_counter
+            pre_hook_counter += 1
             if not hasattr(module, "call_stack"):
                 module.call_stack = type(module).__name__
 
@@ -111,7 +115,9 @@ class TraceManager:
                 if not hasattr(child, "call_stack"):
                     child.call_stack = f"{module.call_stack}.{name}"
 
-            with torch.profiler.record_function(f"s:{module.call_stack}"):
+            with torch.profiler.record_function(
+                f"s:{pre_hook_counter}:{module.call_stack}"
+            ):
                 pass
 
         # Define forward hook
@@ -131,14 +137,13 @@ class TraceManager:
 
         output_dir = os.getenv("PYTORCH_PROFILER_OUTPUT_PATH", ".")
 
-        self._setup_pytorch_profiler()
-
-        # Example of TensorBoard trace handler
+        # TensorBoard trace handler
         tensorboard_handler = None
         if int(os.getenv("LOCAL_RANK", 0)) == 0:
+            self._setup_pytorch_profiler()
             tensorboard_handler = profiler.tensorboard_trace_handler(output_dir)
 
-        # Example of a custom trace handler
+        # Custom trace handler
         def stats_handler(prof):
             """
             Handles the profiling statistics and writes them to JSON files for both GPU and CPU.

@@ -152,10 +152,14 @@ class PytorchTraceParser(ProcessParser):
 
         for e in events:
             if e["cat"] == "user_annotation":
-                self._update_annotation_stack(e["name"], annotation_stack)
+                current_seq = self._update_annotation_stack(
+                    e["name"], annotation_stack, current_seq
+                )
                 continue
 
-            new_event = self._build_cpu_op_event(e, annotation_stack, str(Mode.FORWARD))
+            new_event = self._build_cpu_op_event(
+                e, annotation_stack, str(Mode.FORWARD), current_seq
+            )
             name, start, duration = e["name"], e["ts"], e.get("dur", 0)
 
             # update sequence number, parent id, and mode fields if needed
@@ -237,13 +241,19 @@ class PytorchTraceParser(ProcessParser):
         self._sort_and_build_nested_events(grouped_by_seq_mode)
         return grouped_by_seq_mode
 
-    def _update_annotation_stack(self, name, stack):
+    def _update_annotation_stack(self, name, stack, current_seq):
         if name.startswith("s:"):
-            stack.append(name)
+            parts = name.split(":")
+            if len(parts) > 2 and parts[1].isdigit():
+                current_seq = -int(parts[1])
+                stack.append(":".join(p for i, p in enumerate(parts) if i != 1))
+            else:
+                stack.append(name)
         elif name.startswith("f:") and stack:
             stack.pop()
+        return current_seq
 
-    def _build_cpu_op_event(self, e, annotation_stack, mode):
+    def _build_cpu_op_event(self, e, annotation_stack, mode, seq_num):
         nn_stack = annotation_stack[-1][2:] if annotation_stack else ""
         return {
             "event_name": e["name"],
@@ -253,7 +263,7 @@ class PytorchTraceParser(ProcessParser):
             "pid": e["pid"],
             "time_stamp": e["ts"],
             "end_time_stamp": e["ts"] + e.get("dur", 0),
-            "Sequence number": e["args"].get("Sequence number", -1),
+            "Sequence number": e["args"].get("Sequence number", seq_num),
             "External id": e["args"].get("External id", -1),
             "mode": mode,
             "nn_stack": nn_stack,
