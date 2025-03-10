@@ -187,7 +187,7 @@ torchrun_prefix = (
 )
 
 apptainer_wrap = (
-    "srun apptainer run $shared_dir/apptainer/omnihub.{gpu_arch}.sif"
+    "srun apptainer run $shared_dir/apptainer/omnihub.$gpu_arch.sif"
     ' /bin/bash -c "export ROCM_PATH=/opt/rocm; export ROCM_LIB=/opt/rocm/lib;'
     " export LD_LIBRARY_PATH=/opt/rocm/lib:\\$LD_LIBRARY_PATH;"
     " export PATH=\\$CONDA_DIR/bin:\\$PATH;"
@@ -205,7 +205,7 @@ docker_wrap = (
     " --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     " --device=/dev/kfd --device=/dev/dri"
     " --network=host --ipc=host --shm-size 8G"
-    " docker-virtual.atlartifactory.amd.com/amd/omnihub/radha:{gpu_arch}"
+    " docker-virtual.atlartifactory.amd.com/amd/omnihub/radha:$gpu_arch"
     ' bash -c \\"{base_command}; fix-host-owner $docker_results_dir\\""'
 )
 
@@ -313,18 +313,28 @@ if num_nodes > max_num_nodes:
     print(f"Requested {num_nodes} nodes; selected subset only has {max_num_nodes}")
     sys.exit(1)
 
-
-# STEP 3. Build commands to execute and configure profilers.
-
 # Default to using all GPUs in the partition.
 num_gpus_per_node = partitions[partition_name]["num-gpus"]
 num_tasks_per_node = num_gpus_per_node
 
+# Map the GPU type to the corresponding architecture.
+gpu_type = partitions[partition_name]["gpu"]
+if gpu_type in gpu_mapping:
+    gpu_arch = gpu_mapping[gpu_type]
+else:
+    print(f"Unsupported GPU type: {gpu_type}")
+    sys.exit(1)
+
+
+# STEP 3. Build commands to execute and configure profilers.
+
 for tool in args.tools:
     tool_config = tools[tool]
     if "pre-execute" in tool_config:
+        pre_execute.append("# Pre-execute commands")
         pre_execute.extend(tool_config["pre-execute"].splitlines())
     if "post-execute" in tool_config:
+        post_execute.append("# Post-execute commands")
         post_execute.extend(tool_config["post-execute"].splitlines())
     if "env" in tool_config:
         environment.extend(tool_config["env"].items())
@@ -368,6 +378,7 @@ variables = [
     ("num_nodes", f"{num_nodes}"),
     ("num_gpus_per_node", f"{num_gpus_per_node}"),
     ("num_tasks_per_node", f"{num_tasks_per_node}"),
+    ("gpu_arch", f"{gpu_arch}"),
 ]
 
 # Re-define paths that are different in Docker.
@@ -421,22 +432,12 @@ if base_prefix:
 
 base_command = base_command.format(**variable_map)
 
-# Map the GPU type to the corresponding architecture.
-gpu_type = partitions[partition_name]["gpu"]
-if gpu_type in gpu_mapping:
-    gpu_arch = gpu_mapping[gpu_type]
-else:
-    print(f"Unsupported GPU type: {gpu_type}")
-    sys.exit(1)
-
 command = base_command
 if platform == "apptainer":
-    command = apptainer_wrap.format(base_command=base_command, gpu_arch=gpu_arch)
+    command = apptainer_wrap.format(base_command=base_command)
 elif platform == "docker":
     docker_args = " ".join([f"-e {x[0]}={x[1]}" for x in docker_environment])
-    command = docker_wrap.format(
-        base_command=base_command, docker_args=docker_args, gpu_arch=gpu_arch
-    )
+    command = docker_wrap.format(base_command=base_command, docker_args=docker_args)
 
 execute.append(command)
 

@@ -9,7 +9,7 @@ tools:
       cd tools/omnistat
       $omnistat_dir/omnistat-usermode --start --interval 1
       cd -
-    post-execute: |
+    post-execute: |-
       # Stop Omnistat
       $omnistat_dir/omnistat-usermode --stopexporters
       $omnistat_dir/omnistat-query --job $SLURM_JOB_ID --interval 1 --export $results_dir/tools/omnistat/export.csv > $results_dir/tools/omnistat/report.txt

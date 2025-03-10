@@ -95,6 +95,9 @@ tail -n +2 $results_dir/job.yaml
 echo "Results directory:"
 echo "  $results_dir"
 
+# Run the system information script inside the Apptainer container
+apptainer run $shared_dir/apptainer/omnihub.$gpu_arch.sif /bin/bash -c "$omnihub_dir/scripts/generate-sysinfo.sh $results_dir"
+
 # Store a copy of the application configuration.
 cp $omnihub_dir/$app_config $results_dir/app.yaml
 

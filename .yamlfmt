@@ -1,0 +1,3 @@
+formatter:
+    trim_trailing_whitespace: true
+    scan_folded_as_literal: true

@@ -29,6 +29,9 @@ def process_execution(execution_dir):
     if os.path.isdir(f"{execution_dir}/tools/omnihub-monitor"):
         parser_registry.append(parsers.OmnihubMonitorParser(execution_dir))
 
+    if os.path.isdir(f"{execution_dir}/sysinfo"):
+        parser_registry.append(parsers.SysInfoParser(execution_dir))
+
     if os.path.isdir(f"{execution_dir}/tools/omnistat"):
         parser_registry.append(parsers.OmnistatReportParser(execution_dir))
 

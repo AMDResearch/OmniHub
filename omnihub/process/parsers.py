@@ -329,6 +329,30 @@ class PytorchTraceParser(ProcessParser):
             self.parseTraceData(trace_data, output_file)
 
 
+class SysInfoParser(ProcessParser):
+    def parse(self):
+        omnihub_info_dir = f"{self.execution_dir}/sysinfo"
+        data = {}
+        for p in pathlib.Path(omnihub_info_dir).glob("*.json"):
+            if p.name.startswith("amd_topology"):
+                continue
+            with open(p, "r") as f:
+                rank_data = json.load(f)
+                if "amd_firmware" in p.name:
+                    data["amd_firmware"] = rank_data[0]
+                elif "amd_static" in p.name and "driver" in rank_data[0]:
+                    data["amd_driver"] = rank_data[0]["driver"]
+                else:
+                    data[p.stem] = rank_data
+
+        if len(data) == 0:
+            self.log.warning("Unable to parse sysinfo data")
+            return
+
+        with open(f"{self.processed_dir}/sysinfo.yaml", "w") as f:
+            yaml.dump(data, f)
+
+
 class OmnihubMonitorParser(ProcessParser):
     def parse(self):
         omnihub_monitor_dir = f"{self.execution_dir}/tools/omnihub-monitor"
