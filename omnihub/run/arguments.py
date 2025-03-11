@@ -40,7 +40,11 @@ def parse_config(config: dict, custom_args: list):
     for class_type, class_config in config.items():
         dataclass_list.append(globals().get(class_type))
         for name, value in class_config.items():
-            config_args.append(f"--{class_type}.{name}={value}")
+            config_args.append(f"--{class_type}.{name}")
+            if isinstance(value, list):
+                config_args.extend(map(str, value))
+            else:
+                config_args.append(str(value))
 
     args = config_args + custom_args
     parser = CustomArgumentParser(dataclass_list)
