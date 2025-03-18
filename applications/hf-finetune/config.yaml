@@ -19,12 +19,24 @@ SFTConfig:
   group_by_length: true
   lr_scheduler_type: constant
   report_to: none
-  # gradient_checkpointing_kwargs: "{'use_reentrant': false}"
+  gradient_checkpointing_kwargs:
+    use_reentrant: false
   dataset_text_field: text
   # keep best model
   load_best_model_at_end: true
   # dont save checkpoints
   save_strategy: "no"
+  fsdp_config:
+    fsdp_activation_checkpointing: true
+    fsdp_auto_wrap_policy: "TRANSFORMER_BASED_WRAP"
+    fsdp_backward_prefetch: "NO_PREFETCH"
+    fsdp_cpu_ram_efficient_loading: false
+    fsdp_forward_prefetch: true
+    fsdp_offload_params: false
+    fsdp_sharding_strategy: "FULL_SHARD"
+    fsdp_state_dict_type: "FULL_STATE_DICT"
+    fsdp_sync_module_states: true
+    fsdp_use_orig_params: true
 DataTrainingArguments:
   dataset_name: mlabonne/guanaco-llama2-1k
   dataset_split_test_size: 0.1
