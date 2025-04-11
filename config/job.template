@@ -23,6 +23,9 @@ head_port=29400
 ## https://rocm.docs.amd.com/en/latest/how-to/tuning-guides/mi300x/workload.html#multi-node-fsdp-and-rccl-settings
 # export GPU_MAX_HW_QUEUE=1
 
+# set the number of CPU threads to use for each task based on the number of cores
+export OMP_NUM_THREADS=$(( $(nproc --all) / $num_tasks_per_node ))
+
 ## Remove translation of memory addresses to source code line numbers.
 ## https://pytorch.org/docs/stable/torch_nccl_environment_variables.html
 # export TORCH_DISABLE_ADDR2LINE=1
@@ -87,6 +90,8 @@ job:
   head-address: $$head_host
   head-port: $$head_port
   app-config: $$app_config
+  gpu-arch: $$gpu_arch
+  rocm-version: $$rocm_version
 EOF
 
 echo "Job configuration:"
@@ -96,7 +101,7 @@ echo "Results directory:"
 echo "  $results_dir"
 
 # Run the system information script inside the Apptainer container
-apptainer run $shared_dir/apptainer/omnihub.$gpu_arch.sif /bin/bash -c "$omnihub_dir/scripts/generate-sysinfo.sh $results_dir"
+apptainer run $shared_dir/apptainer/omnihub.$gpu_arch.$rocm_version.sif /bin/bash -c "$omnihub_dir/scripts/generate-sysinfo.sh $results_dir"
 
 # Store a copy of the application configuration.
 cp $omnihub_dir/$app_config $results_dir/app.yaml

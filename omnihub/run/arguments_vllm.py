@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Callable, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 
 @dataclass
@@ -137,22 +137,6 @@ class SamplingParamsArguments:
     #     default=None,
     #     metadata={"help": "Random seed to use for the generation."}
     # )
-    use_beam_search: bool = field(
-        default=False,
-        metadata={"help": "Whether to use beam search instead of sampling."},
-    )
-    length_penalty: float = field(
-        default=1.0,
-        metadata={
-            "help": "Float that penalizes sequences based on their length. Used in beam search."
-        },
-    )
-    early_stopping: Union[bool, str] = field(
-        default=False,
-        metadata={
-            "help": 'Controls the stopping condition for beam search. It accepts the following values: `True`, where the generation stops as soon as there are `best_of` complete candidates; `False`, where an heuristic is applied and the generation stops when is it very unlikely to find better candidates; `"never"`, where the beam search procedure only stops when there cannot be better candidates (canonical beam search algorithm).'
-        },
-    )
     stop: Optional[List[str]] = field(
         default=None,
         metadata={
@@ -223,6 +207,25 @@ class SamplingParamsArguments:
             "help": "If set to an integer k, will use only the last k tokens from the prompt (i.e., left truncation). Defaults to None (i.e., no truncation)."
         },
     )
+    bad_words: Optional[List[str]] = field(
+        default=None, metadata={"help": "Disallowed words for generation."}
+    )
+    logit_bias: Optional[Dict[int, float]] = field(
+        default=None,
+        metadata={"help": "Logit biases for specified token IDs."},
+    )
+    allowed_token_ids: Optional[List[int]] = field(
+        default=None,
+        metadata={"help": "Restricts generation to only these token IDs."},
+    )
+    # output_kind: "RequestOutputKind" = field(
+    #     default_factory=lambda: RequestOutputKind.CUMULATIVE,
+    #     metadata={"help": "Specifies how the output is returned."},
+    # )
+    # guided_decoding: Optional["GuidedDecodingParams"] = field(
+    #     default=None,
+    #     metadata={"help": "Parameters for guided decoding."},
+    # )
 
 
 @dataclass

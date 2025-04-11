@@ -94,11 +94,15 @@ class TraceManager:
         # omnitrace installed in a different path, set PYTHONPATH accordingly.
         sys.path.insert(0, "/opt/omnitrace/lib/python/site-packages/")
         omnitrace_spec = importlib.util.find_spec("omnitrace")
-        if omnitrace_spec is None:
-            print("Unable to find omnitrace module")
-            sys.exit(1)
-        from omnitrace import profile
-
+        if omnitrace_spec is not None:
+            from omnitrace import profile
+        else:
+            rocprofsys_spec = importlib.util.find_spec("rocprofsys")
+            if rocprofsys_spec is not None:
+                from rocprofsys import profile
+            else:
+                print("Omnitrace or rocprofsys profiling module not found.")
+                sys.exit(1)
         return profile()
 
     def _setup_pytorch_profiler(self):

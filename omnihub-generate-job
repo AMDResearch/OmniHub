@@ -95,6 +95,14 @@ optional_group.add_argument(
     metavar="",
 )
 optional_group.add_argument(
+    "--rocm-version",
+    help="ROCm version to use (default: 6.3.2)",
+    type=str,
+    required=False,
+    default="6.3.2",
+    metavar="",
+)
+optional_group.add_argument(
     "--platform",
     help="Container platform to execute in:\n\tapptainer (default)\n\tdocker",
     type=str,
@@ -149,6 +157,9 @@ runners = {"manual", "torchrun"}
 # Sets of supported GPU architectures.
 gpu_mapping = {"mi210": "gfx90a", "mi250": "gfx90a", "mi300": "gfx942"}
 
+# Sets of supported ROCm versions.
+rocm_versions = {"6.2.0", "6.3.2"}
+
 # Lists of commands to execute.
 pre_execute = []
 execute = []
@@ -187,7 +198,7 @@ torchrun_prefix = (
 )
 
 apptainer_wrap = (
-    "srun apptainer run $shared_dir/apptainer/omnihub.$gpu_arch.sif"
+    "srun apptainer run $shared_dir/apptainer/omnihub.{gpu_arch}.{rocm_version}.sif"
     ' /bin/bash -c "export ROCM_PATH=/opt/rocm; export ROCM_LIB=/opt/rocm/lib;'
     " export LD_LIBRARY_PATH=/opt/rocm/lib:\\$LD_LIBRARY_PATH;"
     " export PATH=\\$CONDA_DIR/bin:\\$PATH;"
@@ -205,7 +216,7 @@ docker_wrap = (
     " --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     " --device=/dev/kfd --device=/dev/dri"
     " --network=host --ipc=host --shm-size 8G"
-    " docker-virtual.atlartifactory.amd.com/amd/omnihub/radha:$gpu_arch"
+    " docker-virtual.atlartifactory.amd.com/amd/omnihub/radha:{gpu_arch}.{rocm_version}"
     ' bash -c \\"{base_command}; fix-host-owner $docker_results_dir\\""'
 )
 
@@ -304,8 +315,19 @@ if not partition_name:
     partition_name = cluster["subsets"][0]["partition"]
 
 if partition_name not in partitions.keys():
-    print(f"Unable to find partition: {partition_name}")
+    print(
+        f"Unable to find partition: {partition_name}. Choose from {', '.join(partitions.keys())}"
+    )
     sys.exit(1)
+
+# Extract the ROCm version
+rocm_version = args.rocm_version if args.rocm_version else "6.3.2"
+if rocm_version not in rocm_versions:
+    print(
+        f"Unsupported ROCm version: {rocm_version}. Choose from {', '.join(rocm_versions)}"
+    )
+    sys.exit(1)
+rocm_version = rocm_version.replace(".", "")
 
 num_nodes = args.num_nodes
 max_num_nodes = partitions[partition_name]["num-nodes"]
@@ -379,6 +401,7 @@ variables = [
     ("num_gpus_per_node", f"{num_gpus_per_node}"),
     ("num_tasks_per_node", f"{num_tasks_per_node}"),
     ("gpu_arch", f"{gpu_arch}"),
+    ("rocm_version", f"{rocm_version}"),
 ]
 
 # Re-define paths that are different in Docker.
@@ -434,10 +457,17 @@ base_command = base_command.format(**variable_map)
 
 command = base_command
 if platform == "apptainer":
-    command = apptainer_wrap.format(base_command=base_command)
+    command = apptainer_wrap.format(
+        base_command=base_command, gpu_arch=gpu_arch, rocm_version=rocm_version
+    )
 elif platform == "docker":
     docker_args = " ".join([f"-e {x[0]}={x[1]}" for x in docker_environment])
-    command = docker_wrap.format(base_command=base_command, docker_args=docker_args)
+    command = docker_wrap.format(
+        base_command=base_command,
+        docker_args=docker_args,
+        gpu_arch=gpu_arch,
+        rocm_version=rocm_version,
+    )
 
 execute.append(command)
 
