@@ -119,7 +119,7 @@ post_start_ms=$(date +%s%3N)
 $post_execute_commands
 post_end_ms=$(date +%s%3N)
 
-cat <<EOF > $results_dir/job-report.yaml
+cat <<EOF > $results_dir/job-status.yaml
 pre_start_ms: $pre_start_ms
 pre_end_ms: $pre_end_ms
 execute_start_ms: $execute_start_ms

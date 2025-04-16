@@ -11,7 +11,7 @@ from enum import Enum
 from operator import itemgetter
 
 import orjson
-import pandas
+import pandas as pd
 import yaml
 
 from omnihub.process import util
@@ -382,10 +382,10 @@ class OmnihubMonitorParser(ProcessParser):
         energy = sum([i["TotalEnergy"] for i in data])
 
         records = {
-            "Time (s)": (end - start),
-            "Rank mean time (s)": statistics.mean(durations),
-            "Rank min time (s)": min(durations),
-            "Rank max time (s)": max(durations),
+            "Duration (s)": (end - start),
+            "Rank mean duration (s)": statistics.mean(durations),
+            "Rank min duration (s)": min(durations),
+            "Rank max duration (s)": max(durations),
             "GPU energy (kWh)": energy,
         }
 
@@ -447,13 +447,13 @@ class OmnistatReportParser(ProcessParser):
             yaml.dump(records, f)
 
 
-class JobReportParser(ProcessParser):
+class JobStatusParser(ProcessParser):
     def parse(self):
-        with open(f"{self.execution_dir}/job-report.yaml", "r") as f:
+        with open(f"{self.execution_dir}/job-status.yaml", "r") as f:
             data = yaml.safe_load(f)
         duration_ms = data["execute_end_ms"] - data["execute_start_ms"]
         data["execute_duration_s"] = duration_ms / 1000
-        with open(f"{self.processed_dir}/job-report.yaml", "w") as f:
+        with open(f"{self.processed_dir}/job-status.yaml", "w") as f:
             yaml.dump(data, f)
 
 
@@ -524,3 +524,50 @@ class RocprofStatsParser(ProcessParser):
             columns[column] = column_df
 
         return columns
+
+
+class ReportCardParser(ProcessParser):
+    def parse(self):
+        # Define a mapping for each report field: target field -> (source file key, key in that file, default value)
+        field_mapping = {
+            "GPU max utilization (%)": ("omnistat", "GPU max utilization (%)", None),
+            "GPU max memory (%)": ("omnistat", "GPU max memory (%)", None),
+            "GPU energy (kWh)": ("omnihub-monitor", "GPU energy (kWh)", None),
+            "Duration (s)": ("omnihub-monitor", "Duration (s)", None),
+        }
+
+        # Define the file paths for each report section
+        file_mapping = {
+            "job-status": f"{self.processed_dir}/job-status.yaml",
+            "omnistat": f"{self.processed_dir}/omnistat.yaml",
+            "omnihub-monitor": f"{self.processed_dir}/omnihub-monitor.yaml",
+        }
+
+        # Initialize data with default values per the mapping
+        data = {field: default for field, (_, _, default) in field_mapping.items()}
+
+        # Read job status file to get the exit code
+        job_status_file = file_mapping["job-status"]
+        exit_code = None
+        with open(job_status_file, "r") as f:
+            job_status_data = yaml.safe_load(f)
+            exit_code = job_status_data.get("exit_code", None)
+
+        # Only load the additional reports if the job was successful
+        if exit_code == 0:
+            loaded_files = {}
+            for field, (section, key, default) in field_mapping.items():
+                if section not in loaded_files:
+                    file_path = file_mapping.get(section)
+                    if file_path and os.path.exists(file_path):
+                        with open(file_path, "r") as f:
+                            loaded_files[section] = yaml.safe_load(f)
+                    else:
+                        loaded_files[section] = {}
+                section_data = loaded_files.get(section, {})
+                data[field] = section_data.get(key, default)
+
+        # Save the parsed report card to a YAML file
+        output_file = f"{self.processed_dir}/report-card.yaml"
+        with open(output_file, "w") as f:
+            yaml.dump(data, f)

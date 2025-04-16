@@ -20,8 +20,8 @@ def process_execution(execution_dir):
     parser_registry.append(parsers.JobConfigParser(execution_dir))
     parser_registry.append(parsers.AppLogParser(execution_dir))
 
-    if os.path.isfile(f"{execution_dir}/job-report.yaml"):
-        parser_registry.append(parsers.JobReportParser(execution_dir))
+    if os.path.isfile(f"{execution_dir}/job-status.yaml"):
+        parser_registry.append(parsers.JobStatusParser(execution_dir))
 
     if os.path.isfile(f"{execution_dir}/app.yaml"):
         parser_registry.append(parsers.AppConfigParser(execution_dir))
@@ -40,6 +40,9 @@ def process_execution(execution_dir):
 
     if os.path.isdir(f"{execution_dir}/tools/rocprofv3-stats"):
         parser_registry.append(parsers.RocprofStatsParser(execution_dir))
+
+    # Create a job performance report based on what other tools generate
+    parser_registry.append(parsers.ReportCardParser(execution_dir))
 
     for parser in parser_registry:
         parser.parse()
