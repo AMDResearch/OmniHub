@@ -44,7 +44,7 @@ def parse_config(config: dict, custom_args: list):
             config_args.append(f"--{class_type}.{name}")
             if isinstance(value, list):
                 config_args.extend(map(str, value))
-            if isinstance(value, dict):
+            elif isinstance(value, dict):
                 config_args.append(json.dumps(value))
             else:
                 config_args.append(str(value))

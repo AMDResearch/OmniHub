@@ -23,8 +23,8 @@ gpu_mapping = {
 }
 
 # Sets of supported ROCm versions.
-rocm_versions = {"6.2.0", "6.3.2"}
-default_rocm_version = "6.3.2"
+rocm_versions = {"6.2.0", "6.3.1"}
+default_rocm_version = "6.3.1"
 
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600}
 
@@ -487,10 +487,10 @@ def main():
     )
     optional_group.add_argument(
         "--rocm-version",
-        help="ROCm version to use (default: 6.3.2)",
+        help="ROCm version to use (default: 6.3.1)",
         type=str,
         required=False,
-        default="6.3.2",
+        default="6.3.1",
         metavar="",
     )
     optional_group.add_argument(

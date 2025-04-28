@@ -1,4 +1,4 @@
-entrypoint: benchmark_throughput.py
+entrypoint: /app/vllm/benchmarks/benchmark_throughput.py
 model: Meta-Llama-3.1-8B-Instruct-safetensors
 input_len: 256
 output_len: 256

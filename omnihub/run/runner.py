@@ -1,6 +1,7 @@
 import importlib.util
 import inspect
 import os
+import subprocess
 import sys
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from contextlib import contextmanager
@@ -102,6 +103,17 @@ class OmnihubRunner:
             print("Entrypoint not specified in the configuration file")
             sys.exit(1)
 
+        # model_keys are the keys that are used to specify the model in the config
+        # and are also used to update the config with CLI args if they match. HF uses
+        # pretrained_model_name_or_path but vLLM uses model.
+        self.model_keys = [
+            "model",
+            "model_name",
+            "model_path",
+            "model_dir",
+            "pretrained_model_name_or_path",
+        ]
+        self.model_args = {}
         # Update self.config with CLI args if they match. CLI args take precedence.
         i = 0
         extra_args_indices = []
@@ -123,6 +135,9 @@ class OmnihubRunner:
             if key in config:
                 config[key] = value
                 extra_args_indices.extend(indices)
+            elif key in self.model_keys:
+                self.model_args[key] = value
+                extra_args_indices.extend(indices)
 
         # Remove the CLI args from the extra_args based on the indices that matched the config keys
         self.extra_args = [
@@ -136,11 +151,15 @@ class OmnihubRunner:
         if not os.path.isabs(entrypoint):
             entrypoint = os.path.join(os.path.dirname(self.args.app_config), entrypoint)
 
+        # add the location of the entrypoint to sys.path
+        sys.path.append(os.path.dirname(entrypoint))
+
         # Imports the module specified by the entrypoint.
         spec = importlib.util.spec_from_file_location("module.name", entrypoint)
         module = importlib.util.module_from_spec(spec)
         sys.modules["module.name"] = module
         spec.loader.exec_module(module)
+        self.entrypoint_spec = spec
 
         # Find the first function decorated with @entrypoint in the imported module
         self.func = find_decorated_function(module)
@@ -158,8 +177,53 @@ class OmnihubRunner:
         if self.func:
             self.func(self.extra_args, self.config)
         else:
-            print("No function decorated with @omnihub.entrypoint found to execute.")
-            sys.exit(1)
+            print(
+                "No function decorated with @omnihub.entrypoint found to execute.",
+                flush=True,
+            )
+            # Execute the module as a subprocess with the original extra args
+            # TODO/FIXME: We need to figure out how to move the artifacts to the output directory
+            # Check if one of the model_keys is in the config and set the model path accordingly.
+            # If multiple model keys are found, the first one will be used.
+            default_model_path = None
+            model_key = None
+            for key in self.model_keys:
+                default_model_path = self.config.get(key, self.model_args.get(key))
+                if default_model_path is not None:
+                    model_key = key
+                    break
+            if default_model_path is None:
+                print("No model specified in the configuration file or CLI args")
+                sys.exit(1)
+            omnihub_model_path = os.path.join(
+                os.getenv("OMNIHUB_MODELS_DIR", ""), default_model_path
+            )
+
+            # Check if the provided argument/config is an existing directory with
+            # and without the OMNIHUB_MODELS_DIR prefix. If no directory can be
+            # found, assume it's a model name to be loaded from Huggingface.
+            model_path = default_model_path
+            if not os.path.isdir(default_model_path) and os.path.isdir(
+                omnihub_model_path
+            ):
+                model_path = omnihub_model_path
+            self.config[model_key] = model_path
+
+            # Combine the extra args and the config into a single list
+            module_args = self.extra_args + [
+                f"--{k}={str(v)}" for k, v in self.config.items()
+            ]
+
+            @omnihub.tools.profile()
+            def run_subprocess():
+                return subprocess.run(
+                    [sys.executable, self.entrypoint_spec.origin] + module_args
+                )
+
+            result = run_subprocess()
+            if result.returncode != 0:
+                print(f"Subprocess exited with return code {result.returncode}")
+                sys.exit(result.returncode)
 
     def finalize(self):
         self.dist.finalize()
