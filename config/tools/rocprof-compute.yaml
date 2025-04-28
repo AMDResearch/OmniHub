@@ -1,0 +1,6 @@
+tools:
+  - name: rocprof-compute
+    prefix: 'rocprof-compute profile --name omnihub --path {results_dir}/tools/rocprof-compute/\$SLURM_PROCID --'
+conflicts:
+  - rocprof
+  - omnitrace

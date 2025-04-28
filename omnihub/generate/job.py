@@ -23,7 +23,7 @@ gpu_mapping = {
 }
 
 # Sets of supported ROCm versions.
-rocm_versions = {"6.2.0", "6.3.1"}
+rocm_versions = {"6.3.1"}
 default_rocm_version = "6.3.1"
 
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600}
@@ -59,7 +59,7 @@ def load_tool_config(tools_dir):
 # the innermost Python script and then building around it as follows:
 #  1. Python script (`base_command`) and additional arguments (`base_args`).
 #  2. Prefixes to the Python script (`base_prefix`), which can include certain
-#     runners like torchrun, or profilers like omniperf.
+#     runners like torchrun, or profilers like rocprof-compute.
 #  3. Container wrappers, to create the right execution environment for
 #     container platforms like Apptainer (`apptainer_wrap`) and Docker
 #     (`docker_wrap`).
@@ -299,7 +299,7 @@ def generate_job(
 
     # Force num_tasks_per_node to 1 for rocprof-based tools to lower chance of
     # hangs/crashes.
-    rocprof_based_tools = {"omniperf", "rocprof"}
+    rocprof_based_tools = {"rocprof-compute", "rocprof"}
     if len(args_tools_sources.intersection(rocprof_based_tools)) > 0:
         num_tasks_per_node = 1
 

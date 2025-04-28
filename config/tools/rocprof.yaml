@@ -6,5 +6,5 @@ tools:
   - name: rocprofv3-stats
     prefix: 'rocprofv3 --stats --kernel-trace -d {results_dir}/tools/rocprofv3-stats/\$SLURM_PROCID --'
 conflicts:
-  - omniperf
+  - rocprof-compute
   - omnitrace

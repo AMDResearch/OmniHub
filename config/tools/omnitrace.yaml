@@ -5,5 +5,5 @@ tools:
     env:
       OMNITRACE_OUTPUT_PATH: '{results_dir}/tools/omnitrace'
 conflicts:
-  - omniperf
+  - rocprof-compute
   - rocprof

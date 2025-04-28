@@ -4,7 +4,7 @@ This repository contains a set of utilities (scripts, tools, container images)
 to analyze and characterize AI/ML workloads on AMD systems. The goal of this project is to characterize
 performance of different stages of the ML lifecycle (inference, finetuning) at different system scales (single/multi-node, single/multi-GPU)
 and different model granularities (kernel, op, layer, entire model) and model types (LLM, CNN, GNN).
-The analysis of each workload may be done using available tools such as omniperf, omnitrace, rocprof, and so on.
+The analysis of each workload may be done using available tools such as rocprof-compute, omnitrace, rocprof, and so on.
 
 We have currently tested the scripts in this repository to work with the following ML models, stages, systems, and tools. We have
 ML models copied locally and pre-built [Docker and Apptainer images](docs/images.md) pre-installed and customized with the necessary
@@ -36,7 +36,7 @@ See [here](docs/models.md) for more details on the available ML models on Radha 
 
 **Tools**
 
-- [rocprof](https://github.com/ROCm/rocprofiler)/[omniperf](https://github.com/ROCm/omniperf)
+- [rocprof](https://github.com/ROCm/rocprofiler)/[rocprof-compute](https://github.com/ROCm/rocprofiler-compute/)
 - [PyTorch Profiler](https://pytorch.org/docs/stable/profiler.html)
 - [omnitrace](https://github.com/ROCm/omnitrace)
 - [omnistat](https://github.com/AMDResearch/omnistat/)
@@ -83,7 +83,7 @@ the cluster and `--app-config` points to the path to the application configurati
 
 | Tool              | Description                                                                 |
 | :---------------- | :-------------------------------------------------------------------------- |
-| `omniperf`        | Collect all performance counters.                                           |
+| `rocprof-compute`        | Collect all performance counters.                                           |
 | `omnistat`        | Low-overhead system metrics, sampled at 1s intervals.                       |
 | `omnitrace`       | Application tracing.                                                        |
 | `pytorch-stats`   | Collects detailed statistics of PyTorch operations.                         |
@@ -161,17 +161,17 @@ sbatch job.slurm
 sbatch job.slurm
 ```
 
-#### Finetune Llama3.1 (8B) with manual distributed execution on MI210s (Hugging Face) with Omniperf
+#### Finetune Llama3.1 (8B) with manual distributed execution on MI210s (Hugging Face) with rocprof-compute
 
 ```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --app-config applications/hf-finetune/config.yaml --runner manual --tools omniperf > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --app-config applications/hf-finetune/config.yaml --runner manual --tools rocprof-compute > job.slurm
 sbatch job.slurm
 ```
 
-#### Infer Llama3.1 (8B) via Torchrun on MI210s (Hugging Face) with Omniperf
+#### Infer Llama3.1 (8B) via Torchrun on MI210s (Hugging Face) with rocprof-compute
 
 ```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --app-config applications/hf-infer/config.yaml --runner torchrun --tools omniperf > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --app-config applications/hf-infer/config.yaml --runner torchrun --tools rocprof-compute > job.slurm
 sbatch job.slurm
 ```
 
@@ -186,15 +186,15 @@ sbatch job.slurm
 
 Below are some example steps you can follow to run Llama3.1 (8B Instruct) model on radha and use different tools to collect comprehensive performance metrics.
 
-#### Infer on MI210s (Hugging Face) with Omniperf
+#### Infer on MI210s (Hugging Face) with rocprof-compute
 
 ```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster radha --app-config applications/hf-infer/config.yaml --tools omniperf > job.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster radha --app-config applications/hf-infer/config.yaml --tools rocprof-compute > job.slurm
 sbatch job.slurm
 ```
 
-If the run was successful, you will find the omniperf output stats at
-`$HOME/results/omnihub/$SLURM_JOB_ID/omniperf`, with which you may do further
+If the run was successful, you will find the rocprof-compute output stats at
+`$HOME/results/omnihub/$SLURM_JOB_ID/rocprof-compute`, with which you may do further
 analysis (e.g., roofline analysis).
 
 #### Infer on MI210s (Hugging Face) with Omnitrace

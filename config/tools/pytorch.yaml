@@ -10,6 +10,6 @@ tools:
     args:
       - --pytorch-profiler-trace
 conflicts:
-  - omniperf
+  - rocprof-compute
   - rocprof
   - omnitrace
