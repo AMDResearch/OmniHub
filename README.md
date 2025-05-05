@@ -65,6 +65,8 @@ sbatch hf-infer.slurm
 Where `--omnihub-dir` points to your working copy of the OmniHub repository in
 the cluster and `--app-config` points to the path to the application configuration file relative to the OmniHub directory.
 
+For more examples of using `omnihub-generate-job`, refer to [this document](docs/generate-job-examples.md).
+
 ### List of Command Line Options for `omnihub-generate-job`
 
 | Flag            | Options                                   | Description                                                                              |
@@ -113,100 +115,11 @@ You can find these example applications in the `applications` directory of the r
 
 - **Description**: The `ModelArguments` field specifies important fields that can be used when loading the model including the pretrained model name or path. If a model name is passed, scripts will check if it exists in `OMNIHUB_MODELS_DIR` before downloading from HuggingFace.
 - **Type**: String
--  **Example**: 
+-  **Example**:
 ```
-ModelArguments:  
+ModelArguments:
   pretrained_model_name_or_path: Meta-Llama-3.1-8B-Instruct-safetensors
 ```
-## Use cases
-
-### Llama3.1 on HPC Fund
-
-Below are some example steps you can follow to generate scripts and run inference or finetuning of Llama3.1 model on the
-HPC Fund cluster and use different tools to collect comprehensive performance metrics.
-If the run was successful, you will find the execution logs at
-`$WORK/results/omnihub/$SLURM_JOB_ID`, with which you may do further analysis (e.g., roofline
-analysis, perfetto trace analysis, and GPU telemetry analysis).
-More specifically, you will find the omnitrace output stats under
-`$WORK/results/omnihub/$SLURM_JOB_ID/omnitrace`, with which you may use
-[Perfetto](https://ui.perfetto.dev/) for interactive exploration. The omnistat GPU telemetry
-data can be found at `$WORK/results/omnihub/$SLURM_JOB_ID/omnistat`.
-Change `$HOME/omnihub` to the installed location of OmniHub in your environment.
-
-#### Infer Llama3.1 (405B) with a single-node execution on MI300s (vLLM) with Omnistat
-
-```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --app-args=--model-dir=Meta-Llama-3.1-405B-Instruct-safetensors --app-config applications/vllm-infer/config.yaml --tools omnistat > job.slurm
-sbatch job.slurm
-```
-
-#### Infer Llama3.1 (405B) with a single-node execution on MI250s (Hugging Face) with PyTorch Profiler traces
-
-```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --app-args=--model-dir=Meta-Llama-3.1-405B-Instruct-safetensors --app-config applications/hf-infer/config.yaml --tools pytorch-trace > job.slurm
-sbatch job.slurm
-```
-
-#### Finetune Llama3.1 (8B) with a single-node execution on MI250s (Hugging Face) with Rocprof stats
-
-```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --app-config applications/hf-finetune/config.yaml --runner manual --tools rocprofv1-stats  > job.slurm
-sbatch job.slurm
-```
-
-#### Finetune Llama3.1 (8B) with a single-node execution on MI250s (Hugging Face) with Rocprof performance counters
-
-```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2508x --app-config applications/hf-finetune/config.yaml --runner manual --tools rocprofv2-pmc  > job.slurm
-sbatch job.slurm
-```
-
-#### Finetune Llama3.1 (8B) with manual distributed execution on MI210s (Hugging Face) with rocprof-compute
-
-```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --app-config applications/hf-finetune/config.yaml --runner manual --tools rocprof-compute > job.slurm
-sbatch job.slurm
-```
-
-#### Infer Llama3.1 (8B) via Torchrun on MI210s (Hugging Face) with rocprof-compute
-
-```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --app-config applications/hf-infer/config.yaml --runner torchrun --tools rocprof-compute > job.slurm
-sbatch job.slurm
-```
-
-#### Finetune Llama3.1 (8B) with Torchrun on MI210s (Hugging Face) with Omnitrace and Omnistat
-
-```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster hpcfund --partition mi2104x --num-nodes 2 --app-config applications/hf-finetune/config.yaml --runner torchrun --tools omnitrace omnistat > job.slurm
-sbatch job.slurm
-```
-
-### Llama3 on Radha
-
-Below are some example steps you can follow to run Llama3.1 (8B Instruct) model on radha and use different tools to collect comprehensive performance metrics.
-
-#### Infer on MI210s (Hugging Face) with rocprof-compute
-
-```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster radha --app-config applications/hf-infer/config.yaml --tools rocprof-compute > job.slurm
-sbatch job.slurm
-```
-
-If the run was successful, you will find the rocprof-compute output stats at
-`$HOME/results/omnihub/$SLURM_JOB_ID/rocprof-compute`, with which you may do further
-analysis (e.g., roofline analysis).
-
-#### Infer on MI210s (Hugging Face) with Omnitrace
-
-```
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --cluster radha --model Meta-Llama-3-8B-Instruct-safetensors --app-config applications/hf-infer/config.yaml --tools omnitrace > job.slurm
-sbatch job.slurm
-```
-
-If the run was successful, you will find the omnitrace output stats under
-`$HOME/results/omnihub/$SLURM_JOB_ID/omnitrace`, with which
-you may use [Perfetto](https://ui.perfetto.dev/) for interactive exploration.
 
 ## Processing Results
 
