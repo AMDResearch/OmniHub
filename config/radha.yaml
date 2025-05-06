@@ -2,6 +2,7 @@ cluster:
   name: radha
   models-dir: /shared/omnihub/models
   shared-dir: /home/shared/projs/omnihub
+  data-dir: /home/shared/projs/omnihub/data
   results-dir: $HOME/results/omnihub/$SLURM_JOB_ID
   container-platforms:
     - apptainer

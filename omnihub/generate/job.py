@@ -147,6 +147,7 @@ def generate_job(
         'srun bash -c "docker run --rm {docker_args}'
         " -v $omnihub_dir:$docker_omnihub_dir:ro"
         " -v $models_dir:$docker_models_dir:ro"
+        " -v $data_dir:$docker_data_dir:ro"
         " -v $shared_dir:$docker_shared_dir:ro"
         " -v $results_dir:$docker_results_dir"
         " -w $docker_results_dir"
@@ -225,9 +226,20 @@ def generate_job(
         cluster_info = yaml.safe_load(f)["cluster"]
 
     container_platforms = cluster_info["container-platforms"]
-    models_dir = cluster_info["models-dir"]
+
+    def get_dir(env_var, cluster_key):
+        value = os.environ.get(env_var) or cluster_info.get(cluster_key, "")
+        if not value:
+            print(
+                f"Neither {env_var} environment variable nor '{cluster_key}' in {cluster_file} is set."
+            )
+            sys.exit(1)
+        return value
+
+    models_dir = get_dir("OMNIHUB_MODELS_DIR", "models-dir")
+    data_dir = get_dir("OMNIHUB_DATA_DIR", "data-dir")
     shared_dir = cluster_info["shared-dir"]
-    results_dir = cluster_info["results-dir"]
+    results_dir = get_dir("OMNIHUB_RESULTS_DIR", "results-dir")
     partitions = {x["partition"]: x for x in cluster_info["subsets"]}
 
     cluster_name = cluster_info["name"]
@@ -321,6 +333,7 @@ def generate_job(
     variables = [
         ("omnihub_dir", f"{omnihub_dir}"),
         ("models_dir", f"{models_dir}"),
+        ("data_dir", f"{data_dir}"),
         ("shared_dir", f"{shared_dir}"),
         ("results_dir", f"{results_dir}"),
         ("app_config", f"{app_config}"),
@@ -340,6 +353,7 @@ def generate_job(
     docker_variables = [
         ("omnihub_dir", "/omnihub"),
         ("models_dir", "/models"),
+        ("data_dir", "/data"),
         ("shared_dir", "/shared"),
         ("results_dir", "/results"),
     ]
@@ -373,6 +387,8 @@ def generate_job(
     # The OMNIHUB prefix also ensures these are exported to Docker containers.
     omnihub_environment = [
         ("OMNIHUB_MODELS_DIR", "{models_dir}"),
+        ("OMNIHUB_DATA_DIR", "{data_dir}"),
+        ("OMNIHUB_RESULTS_DIR", "{results_dir}"),
     ]
     pre_execute.append("# Set OmniHub environment variables")
     for variable, value in omnihub_environment:

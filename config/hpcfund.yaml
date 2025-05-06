@@ -2,6 +2,7 @@ cluster:
   name: hpcfund
   models-dir: /work1/models/amd
   shared-dir: /work1/amd/omnihub
+  data-dir: /work1/amd/omnihub/data
   results-dir: $WORK/results/omnihub/$SLURM_JOB_ID
   container-platforms:
     - apptainer
