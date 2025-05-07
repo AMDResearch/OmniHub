@@ -145,13 +145,15 @@ class OmnihubRunner:
         ]
         self.config = config
 
-        # Check if entrypoint is an absolute path. If not, make it relative to the config file.
-        # Application writer is responsible to structuring the config file location and
-        # entrypoint correctly.
+        # Check if entrypoint is an absolute path. If not, make it relative to
+        # the script file. Application writer is responsible to structuring the
+        # config file location and entrypoint correctly.
         if not os.path.isabs(entrypoint):
-            entrypoint = os.path.join(os.path.dirname(self.args.app_config), entrypoint)
+            entrypoint = os.path.join(
+                os.path.dirname(os.path.abspath(sys.argv[0])), entrypoint
+            )
 
-        # add the location of the entrypoint to sys.path
+        # Add the location of the entrypoint to sys.path
         sys.path.append(os.path.dirname(entrypoint))
 
         # Imports the module specified by the entrypoint.

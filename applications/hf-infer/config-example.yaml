@@ -1,4 +1,4 @@
-entrypoint: infer.py
+entrypoint: applications/hf-infer/infer.py
 BitsAndBytesConfigDataclass:
   load_in_4bit: true
   bnb_4bit_quant_type: nf4

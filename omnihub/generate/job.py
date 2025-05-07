@@ -4,6 +4,7 @@ import os
 import pathlib
 import re
 import sys
+from contextlib import nullcontext
 from string import Template
 
 import yaml
@@ -76,15 +77,16 @@ def generate_job(
     config_dir,
     omnihub_dir,
     app_config,
-    app_args,
-    num_nodes,
-    partition,
-    rocm_version,
-    platform,
-    cluster,
-    runner,
-    tools,
-    time,
+    app_args="",
+    num_nodes=1,
+    rocm_version=default_rocm_version,
+    platform="apptainer",
+    cluster="hpcfund",
+    partition=None,
+    runner=None,
+    tools=[],
+    time_limit="1h",
+    output=None,
 ):
     template_file = f"{config_dir}/job.template"
 
@@ -213,11 +215,11 @@ def generate_job(
             sys.exit(1)
 
     time_pattern = f"[0-9]+[{''.join(seconds_per_unit.keys())}]"
-    if not re.fullmatch(time_pattern, time):
-        print(f"Unexpected time limit format: {time}")
+    if not re.fullmatch(time_pattern, time_limit):
+        print(f"Unexpected time limit format: {time_limit}")
         sys.exit(1)
 
-    time_limit_seconds = int(time[:-1]) * seconds_per_unit[time[-1]]
+    time_limit_seconds = int(time_limit[:-1]) * seconds_per_unit[time_limit[-1]]
     time_limit_delta = datetime.timedelta(seconds=time_limit_seconds)
 
     # STEP 2. Cluster-related validation, configuration and node selection.
@@ -447,7 +449,9 @@ def generate_job(
     with open(template_file, "r") as f:
         template = Template(f.read())
 
-    print(template.safe_substitute(substitutions))
+    job = template.safe_substitute(substitutions)
+    with open(output, "w") if output else nullcontext(sys.stdout) as f:
+        f.write(job)
 
 
 def main():
@@ -542,10 +546,17 @@ def main():
         metavar="",
     )
     optional_group.add_argument(
-        "--time",
+        "--time-limit",
         help="Time limit for the SLURM job as an integer followed by a time unit (default: 1h). Examples: 120s, 30m, 5h.",
         type=str,
         default="1h",
+        metavar="",
+    )
+    optional_group.add_argument(
+        "--output",
+        help="Write generated job to a file (default: stdout).",
+        type=str,
+        default=None,
         metavar="",
     )
 

@@ -58,7 +58,7 @@ to generate reference job scripts and modify application launch commands as need
 In its most basic form, SLURM job script generation and job execution work as follows:
 
 ```console
-./omnihub-generate-job --omnihub-dir $HOME/omnihub --app-config applications/hf-infer/config.yaml > hf-infer.slurm
+./omnihub-generate-job --omnihub-dir $HOME/omnihub --app-config applications/hf-infer/config-example.yaml > hf-infer.slurm
 sbatch hf-infer.slurm
 ```
 
@@ -79,7 +79,7 @@ For more examples of using `omnihub-generate-job`, refer to [this document](docs
 | `--platform`    | **`apptainer`**, `docker`                 | Container platform for the execution; supported platforms in cluster configuration file. |
 | `--runner`      | `manual`, `torchrun`                      | Distributed runner. Required for multi-node executions.                                  |
 | `--tools`       | [List of tools](#list-of-supported-tools) | Space-separated list of tools to use.                                                    |
-| `--time`        |                                           | Time limit for the SLURM job as an integer followed by a time unit.                      |
+| `--time-limit`  |                                           | Time limit for the SLURM job as an integer followed by a time unit.                      |
 
 ### List of Supported Tools
 
@@ -120,6 +120,77 @@ You can find these example applications in the `applications` directory of the r
 ModelArguments:
   pretrained_model_name_or_path: Meta-Llama-3.1-8B-Instruct-safetensors
 ```
+
+## Sweeping Job and Application Arguments
+
+The OmniHub sweep tool is designed to automate the generation of OmniHub jobs
+and facilitate their submission to a cluster. It allows users to automatically
+generate different job and application configurations: job configurations
+change depending on the provided CLI flags, while application configurations
+are generated based on templates.
+
+Application templates are configuration files that allow several values
+provided as lists. The OmniHub sweep tool will generate all possible
+combinations of values for a given template. For example, the following
+template to sweep the input and output lengths in the VLLM latency benchmark
+will generate 4 configuration files with different combinations of
+`input_len`/`output_len`: `32/128`, `32/256`, `64/128`, `64/256`.
+```yaml
+entrypoint: /app/vllm/benchmarks/benchmark_latency.py
+model: Meta-Llama-3.1-8B-Instruct-safetensors
+tensor_parallel_size: 1
+load_format: dummy
+num_iters_warmup: 5
+num_iters: 15
+input_len:
+  - 32
+  - 64
+output_len:
+  - 128
+  - 256
+batch_size: 8
+dtype: auto
+kv-cache-dtype: auto
+output_json: latency_results.json
+```
+
+The `omnihub-sweep` CLI also allows sweeping over job-related options,
+including:
+- `--partitions`: cluster partitions.
+- `--num-nodes`: number of nodes.
+- `--tools`: profiling tools to enable (`--tools` can
+  be set multiple times to enable different sets of tools).
+
+For example, using the previously listed template stored in a file named
+`vllm-latency-template.yaml`, the following `omnihub-sweep` will generate 4
+configuration files, and then it will submit jobs for all of them in 2
+partitions using 2 different sets of tools:
+```
+$ mkdir sweep-vllm
+$ ./omnihub-sweep --omnihub-dir $PWD --sweep-dir ./sweep-vllm --template vllm-latency-template.yaml --partitions mi2104x mi2508x --tools omnistat --tools omnistat rocprofv3-stats
+Starting a new sweep
+.. Generated configurations: 4
+Number of jobs in this sweep: 16
+Submitting job: mi2104x/1/omnistat/config-00001.yaml
+Submitting job: mi2104x/1/omnistat/config-00003.yaml
+Submitting job: mi2104x/1/omnistat/config-00002.yaml
+Submitting job: mi2104x/1/omnistat/config-00000.yaml
+Submitting job: mi2104x/1/omnistat,rocprofv3-stats/config-00001.yaml
+Submitting job: mi2104x/1/omnistat,rocprofv3-stats/config-00003.yaml
+Submitting job: mi2104x/1/omnistat,rocprofv3-stats/config-00002.yaml
+Submitting job: mi2104x/1/omnistat,rocprofv3-stats/config-00000.yaml
+Submitting job: mi2508x/1/omnistat/config-00001.yaml
+Submitting job: mi2508x/1/omnistat/config-00003.yaml
+Submitting job: mi2508x/1/omnistat/config-00002.yaml
+Submitting job: mi2508x/1/omnistat/config-00000.yaml
+Submitting job: mi2508x/1/omnistat,rocprofv3-stats/config-00001.yaml
+Submitting job: mi2508x/1/omnistat,rocprofv3-stats/config-00003.yaml
+Submitting job: mi2508x/1/omnistat,rocprofv3-stats/config-00002.yaml
+Submitting job: mi2508x/1/omnistat,rocprofv3-stats/config-00000.yaml
+```
+
+To test sweeps and job generation without submitting jobs to the cluster, use
+the `--dry-run` flag.
 
 ## Processing Results
 

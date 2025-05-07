@@ -1,8 +1,10 @@
-entrypoint: finetune.py
+entrypoint: applications/hf-finetune/finetune.py
 SFTConfig:
   output_dir: ./fine-tuned-models
   num_train_epochs: 1
-  per_device_train_batch_size: 2
+  per_device_train_batch_size:
+    - 1
+    - 2
   gradient_accumulation_steps: 1
   # FIXME(aaji): option conflicts with torch DDP arg for manual launcher
   ddp_find_unused_parameters: false
@@ -11,8 +13,12 @@ SFTConfig:
   logging_steps: 25
   learning_rate: 2.0e-4
   weight_decay: 0.001
-  fp16: false
-  bf16: false
+  fp16:
+    - true
+    - false
+  bf16:
+    - true
+    - false
   max_grad_norm: 0.3
   max_steps: -1
   warmup_ratio: 0.03
@@ -41,11 +47,15 @@ DataTrainingArguments:
   dataset_name: mlabonne/guanaco-llama2-1k
   dataset_split_test_size: 0.1
 BitsAndBytesConfigDataclass:
-  load_in_4bit: true
+  load_in_4bit:
+    - true
+    - false
   bnb_4bit_quant_type: nf4
   bnb_4bit_compute_dtype: bfloat16
   bnb_4bit_use_double_quant: true
-  load_in_8bit: false
+  load_in_8bit:
+    - true
+    - false
   quant_method: bitsandbytes
 LoRAArguments:
   lora_alpha: 15

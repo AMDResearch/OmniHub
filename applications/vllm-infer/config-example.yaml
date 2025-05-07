@@ -1,4 +1,4 @@
-entrypoint: infer.py
+entrypoint: applications/vllm-infer/infer.py
 VllmArguments:
   model: Meta-Llama-3.1-8B-Instruct-safetensors
   tensor_parallel_size: 1
