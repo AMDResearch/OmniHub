@@ -21,6 +21,7 @@ gpu_mapping = {
     "mi210": "gfx90a",
     "mi250": "gfx90a",
     "mi300": "gfx942",
+    "mi325": "gfx942",
 }
 
 # Sets of supported ROCm versions.

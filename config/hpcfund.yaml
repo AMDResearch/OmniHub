@@ -15,8 +15,8 @@ cluster:
       gpu: mi250
       num-gpus: 8
       num-nodes: 8
-    - partition: internal
-      gpu: mi300
+    - partition: mi3258x
+      gpu: mi325
       num-gpus: 8
       num-nodes: 1
     - partition: mi3008x
