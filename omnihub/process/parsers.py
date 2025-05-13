@@ -382,6 +382,8 @@ class OmnihubMonitorParser(ProcessParser):
         energy = sum([i["TotalEnergy"] for i in data])
 
         records = {
+            "Start Timestamp": start,
+            "End Timestamp": end,
             "Duration (s)": (end - start),
             "Rank mean duration (s)": statistics.mean(durations),
             "Rank min duration (s)": min(durations),
@@ -391,6 +393,84 @@ class OmnihubMonitorParser(ProcessParser):
 
         with open(f"{self.processed_dir}/omnihub-monitor.yaml", "w") as f:
             yaml.dump(records, f)
+
+
+# Omnistat range parser reads start and end timestamps from the omnihub monitor parser and calculates the average
+# and maximum GPU utilization and memory usage over that time period.
+# The parser reads from the Omnistat CSV file and writes the results to a YAML file.
+class OmnistatRangeParser(ProcessParser):
+    def __init__(self, execution_dir, name="omnistat"):
+        super().__init__(execution_dir)
+        self.variant_name = name
+
+    def parse(self):
+        # read the start and end timestamps from the output of the omnihub monitor parser
+        # and use them to filter the omnistat data
+        omnihub_monitor_file = f"{self.processed_dir}/omnihub-monitor.yaml"
+        if not os.path.exists(omnihub_monitor_file):
+            self.log.warning(
+                f"Unable to find Omnihub monitor file: {omnihub_monitor_file}. Run the OmniHubMonitorParser first."
+            )
+            return
+
+        with open(omnihub_monitor_file, "r") as f:
+            data = yaml.safe_load(f)
+        start_time = data["Start Timestamp"]
+        end_time = data["End Timestamp"]
+
+        omnistat_file = f"{self.execution_dir}/tools/{self.variant_name}/export.csv"
+        if not os.path.exists(omnistat_file):
+            self.log.warning(
+                f"Unable to find Omnistat exported CSV file: {omnistat_file}"
+            )
+            return
+        # The CSV file is expected to have a multi-index header with three levels.
+        # Use the timestamp column as the index.
+        # This structure is critical for parsing the data correctly. If the CSV format changes,
+        # update the `header` parameter and ensure the rest of the code is compatible.
+        df_data = pd.read_csv(omnistat_file, header=[0, 1, 2], index_col=0)
+
+        # Convert the index (timestamp) to numeric (in seconds)
+        df_data.index = pd.to_datetime(df_data.index).astype("int64") // 10**9
+
+        # Filter rows based on the timestamp range
+        df_filtered = df_data[
+            (df_data.index >= start_time) & (df_data.index <= end_time)
+        ]
+        if df_filtered.empty:
+            self.log.warning("No data available within the specified timestamp range.")
+            return
+
+        # df_data.columns have the following format:
+        # ('metric', 'node_instance_name', 'gpu_index')
+        # where metrics of interest can be one of the following, among others:
+        # 'rocm_utilization_percentage', 'rocm_vram_used_percentage', 'rocm_average_socket_power_watts'
+        metrics_map = {
+            "rocm_utilization_percentage": "utilization",
+            "rocm_vram_used_percentage": "memory",
+            "rocm_average_socket_power_watts": "power",
+        }
+        result = {
+            "Start Timestamp": start_time,
+            "End Timestamp": end_time,
+        }
+        for metric, name in metrics_map.items():
+            cols = [col for col in df_data.columns if col[0] == metric]
+            if not cols:
+                self.log.warning(f"Metric {metric} not found in Omnistat file")
+                continue
+            stats = df_filtered[cols]
+            if name == "power":
+                # compute energy in kWh: convert W*sec to Wh then to kWh
+                time_diffs = df_filtered.index.to_series().diff().fillna(0)
+                energy_Wh = (stats.mul(time_diffs, axis=0)).sum().sum() / 3600
+                result["GPU energy (kWh)"] = float(energy_Wh) / 1000
+            else:
+                result[f"GPU mean {name} (%)"] = float(stats.mean(axis=1).mean())
+                result[f"GPU max {name} (%)"] = float(stats.max(axis=1).max())
+
+        with open(f"{self.processed_dir}/{self.variant_name}-range.yaml", "w") as f:
+            yaml.dump(result, f)
 
 
 # Current implementation to load Omnistat data relies on the text report,
@@ -530,8 +610,18 @@ class ReportCardParser(ProcessParser):
     def parse(self):
         # Define a mapping for each report field: target field -> (source file key, key in that file, default value)
         field_mapping = {
-            "GPU max utilization (%)": ("omnistat", "GPU max utilization (%)", None),
-            "GPU max memory (%)": ("omnistat", "GPU max memory (%)", None),
+            "GPU max utilization (%)": (
+                "omnistat-range",
+                "GPU max utilization (%)",
+                None,
+            ),
+            "GPU max memory (%)": ("omnistat-range", "GPU max memory (%)", None),
+            "GPU mean utilization (%)": (
+                "omnistat-range",
+                "GPU mean utilization (%)",
+                None,
+            ),
+            "GPU mean memory (%)": ("omnistat-range", "GPU mean memory (%)", None),
             "GPU energy (kWh)": ("omnihub-monitor", "GPU energy (kWh)", None),
             "Duration (s)": ("omnihub-monitor", "Duration (s)", None),
         }
@@ -539,7 +629,7 @@ class ReportCardParser(ProcessParser):
         # Define the file paths for each report section
         file_mapping = {
             "job-status": f"{self.processed_dir}/job-status.yaml",
-            "omnistat": f"{self.processed_dir}/omnistat.yaml",
+            "omnistat-range": f"{self.processed_dir}/omnistat-range.yaml",
             "omnihub-monitor": f"{self.processed_dir}/omnihub-monitor.yaml",
         }
 
