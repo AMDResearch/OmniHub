@@ -118,7 +118,7 @@ You can find these example applications in the `applications` directory of the r
 -  **Example**:
 ```
 ModelArguments:
-  pretrained_model_name_or_path: Meta-Llama-3.1-8B-Instruct-safetensors
+  pretrained_model_name_or_path: meta-llama/Llama-3.1-8B-Instruct
 ```
 
 ## Sweeping Job and Application Arguments
@@ -137,7 +137,7 @@ will generate 4 configuration files with different combinations of
 `input_len`/`output_len`: `32/128`, `32/256`, `64/128`, `64/256`.
 ```yaml
 entrypoint: /app/vllm/benchmarks/benchmark_latency.py
-model: Meta-Llama-3.1-8B-Instruct-safetensors
+model: meta-llama/Llama-3.1-8B-Instruct
 tensor_parallel_size: 1
 load_format: dummy
 num_iters_warmup: 5

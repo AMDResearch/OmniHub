@@ -21,7 +21,7 @@ LoRAArguments:
   task_type: CAUSAL_LM
   target_modules: all-linear
 ModelArguments:
-  pretrained_model_name_or_path: Meta-Llama-3.1-8B-Instruct-safetensors
+  pretrained_model_name_or_path: meta-llama/Llama-3.1-8B-Instruct
 
 # Comment out for now because ROCm support for BitsAndBytes is not stable
 # BitsAndBytesConfigDataclass:
