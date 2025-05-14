@@ -2,13 +2,14 @@ entrypoint: applications/hf-finetune/finetune.py
 SFTConfig:
   output_dir: ./fine-tuned-models
   num_train_epochs: 3
-  per_device_train_batch_size: 1
+  per_device_train_batch_size: 2
   bf16: true
   gradient_checkpointing_kwargs:
     use_reentrant: true
   dataset_text_field: text
   # dont save checkpoints
   save_strategy: "no"
+  fsdp: hybrid_shard
 DataTrainingArguments:
   dataset_name: mlabonne/guanaco-llama2-1k
   dataset_split_test_size: 0.1
@@ -21,8 +22,6 @@ LoRAArguments:
   target_modules: all-linear
 ModelArguments:
   pretrained_model_name_or_path: Meta-Llama-3.1-8B-Instruct-safetensors
-  #   args:
-  #     attn_implementation: "flash_attention_2"
 
 # Comment out for now because ROCm support for BitsAndBytes is not stable
 # BitsAndBytesConfigDataclass:

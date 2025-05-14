@@ -2,13 +2,28 @@ entrypoint: applications/hf-finetune/finetune.py
 SFTConfig:
   output_dir: ./fine-tuned-models
   num_train_epochs: 3
-  per_device_train_batch_size: 1
+  per_device_train_batch_size: 2
   bf16: true
   gradient_checkpointing_kwargs:
     use_reentrant: true
   dataset_text_field: text
   # dont save checkpoints
   save_strategy: "no"
+  deepspeed:
+    train_batch_size: auto
+    train_micro_batch_size_per_gpu: auto
+    # set to 0, 1, 2, or 3
+    zero_optimization:
+      stage: 2
+      # set these if zero 3
+  #   reduce_bucket_size: auto
+  #   contiguous_gradients: true
+  #   overlap_comm: true
+  #   stage3_prefetch_bucket_size: auto
+  #   stage3_param_persistence_threshold: auto
+  #   stage3_gather_16bit_weights_on_model_save: auto
+  #   zero3_init_flag: true
+  #   gradient_clipping: auto
 DataTrainingArguments:
   dataset_name: mlabonne/guanaco-llama2-1k
   dataset_split_test_size: 0.1
@@ -21,8 +36,6 @@ LoRAArguments:
   target_modules: all-linear
 ModelArguments:
   pretrained_model_name_or_path: Meta-Llama-3.1-8B-Instruct-safetensors
-  #   args:
-  #     attn_implementation: "flash_attention_2"
 
 # Comment out for now because ROCm support for BitsAndBytes is not stable
 # BitsAndBytesConfigDataclass:

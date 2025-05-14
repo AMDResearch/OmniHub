@@ -37,14 +37,15 @@ class FineTuner:
                 if PartialState().distributed_type is DistributedType.NO
                 else {"": PartialState().local_process_index}
             ),
+            # attn_implementation="flash_attention_2"
             **self.ModelArguments.args,
         )
 
         model.config.use_cache = False
         model.config.pretraining_tp = 1
 
-        model.gradient_checkpointing_enable()
-        model = prepare_model_for_kbit_training(model)
+        if hasattr(self, "BitsAndBytesConfigDataclass"):
+            model = prepare_model_for_kbit_training(model)
 
         if hasattr(self, "LoRAArguments"):
             model = get_peft_model(model, LoraConfig(**asdict(self.LoRAArguments)))
