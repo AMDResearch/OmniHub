@@ -418,7 +418,9 @@ class OmnistatRangeParser(ProcessParser):
         start_time = data["Start Timestamp"]
         end_time = data["End Timestamp"]
 
-        omnistat_file = f"{self.execution_dir}/tools/{self.variant_name}/export.csv"
+        omnistat_file = (
+            f"{self.execution_dir}/tools/{self.variant_name}/omnistat-rocm.csv"
+        )
         if not os.path.exists(omnistat_file):
             self.log.warning(
                 f"Unable to find Omnistat exported CSV file: {omnistat_file}"
@@ -523,7 +525,10 @@ class OmnistatReportParser(ProcessParser):
             if match:
                 records["GPU energy (kWh)"] = match.group(1)
 
-        with open(f"{self.processed_dir}/{self.variant_name}.yaml", "w") as f:
+        # Assume executions only have a single Omnistat variant, and so there
+        # is a single report to process, and it's always stored in the same
+        # omnistat.yaml file.
+        with open(f"{self.processed_dir}/omnistat.yaml", "w") as f:
             yaml.dump(records, f)
 
 

@@ -12,5 +12,21 @@ tools:
     post-execute: |-
       # Stop Omnistat
       $omnistat_dir/omnistat-usermode --stopexporters
-      $omnistat_dir/omnistat-query --job $SLURM_JOB_ID --interval 1 --export $results_dir/tools/omnistat/export.csv > $results_dir/tools/omnistat/report.txt
+      $omnistat_dir/omnistat-query --job $SLURM_JOB_ID --interval 1 --export $results_dir/tools/omnistat > $results_dir/tools/omnistat/report.txt
+      $omnistat_dir/omnistat-usermode --stopserver
+  - name: omnistat-rocprofiler
+    pre-execute: |
+      # Configure and start Omnistat
+      export HSA_TOOLS_LIB=$ROCM_PATH/lib/librocprofiler64.so
+      export OMNISTAT_CONFIG=$shared_dir/tools/omnistat-rocprofiler/omnihub.config
+      export OMNISTAT_VICTORIA_DATADIR=$results_dir/tools/omnistat-rocprofiler/data
+      omnistat_dir=$shared_dir/tools/omnistat-rocprofiler/venv/bin/
+      mkdir -p tools/omnistat-rocprofiler
+      cd tools/omnistat-rocprofiler
+      $omnistat_dir/omnistat-usermode --start --interval 1
+      cd -
+    post-execute: |-
+      # Stop Omnistat
+      $omnistat_dir/omnistat-usermode --stopexporters
+      $omnistat_dir/omnistat-query --job $SLURM_JOB_ID --interval 1 --export $results_dir/tools/omnistat-rocprofiler > $results_dir/tools/omnistat-rocprofiler/report.txt
       $omnistat_dir/omnistat-usermode --stopserver

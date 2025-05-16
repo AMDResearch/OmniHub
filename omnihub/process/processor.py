@@ -36,6 +36,11 @@ def process_execution(execution_dir):
         parser_registry.append(parsers.OmnistatReportParser(execution_dir))
         parser_registry.append(parsers.OmnistatRangeParser(execution_dir))
 
+    if os.path.isdir(f"{execution_dir}/tools/omnistat-rocprofiler"):
+        parser_registry.append(
+            parsers.OmnistatReportParser(execution_dir, name="omnistat-rocprofiler")
+        )
+
     if os.path.isdir(f"{execution_dir}/tools/pytorch-trace"):
         parser_registry.append(parsers.PytorchTraceParser(execution_dir))
 
