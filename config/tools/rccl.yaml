@@ -1,0 +1,10 @@
+tools:
+  - name: rccl-info
+    env:
+      NCCL_DEBUG: 'INFO'
+      NCCL_DEBUG_TIMESTAMP_LEVELS: 'INFO'
+      NCCL_DEBUG_TIMESTAMP_FORMAT: '"%s.%9f "'
+      NCCL_DEBUG_SUBSYS: 'COLL'
+      NCCL_DEBUG_FILE: 'tools/rccl-info/rccl-coll.%h.%p.txt'
+    pre-execute: |-
+      mkdir -p tools/rccl-info

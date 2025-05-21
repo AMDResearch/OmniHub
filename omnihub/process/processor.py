@@ -44,6 +44,9 @@ def process_execution(execution_dir):
     if os.path.isdir(f"{execution_dir}/tools/pytorch-trace"):
         parser_registry.append(parsers.PytorchTraceParser(execution_dir))
 
+    if os.path.isdir(f"{execution_dir}/tools/rccl-info"):
+        parser_registry.append(parsers.RcclInfoParser(execution_dir))
+
     if os.path.isdir(f"{execution_dir}/tools/rocprofv3-stats"):
         parser_registry.append(parsers.RocprofStatsParser(execution_dir))
 

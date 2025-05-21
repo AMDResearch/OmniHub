@@ -49,6 +49,10 @@ class TraceManager:
         os.makedirs(output_dir, exist_ok=True)
         node_id = int(os.getenv("RANK", 0)) // torch.cuda.device_count()
         local_rank = int(os.getenv("LOCAL_RANK", 0))
+        # find map between hostname and node_id, also a map between process id and local rank
+        # in the same node
+        hostname = os.uname().nodename
+        process_id = os.getpid()
         output_file = os.path.join(
             output_dir, f"omnihub_monitor_output_{node_id}_{local_rank}.json"
         )
@@ -74,6 +78,8 @@ class TraceManager:
             data = {
                 "Node": node_id,
                 "Rank": local_rank,
+                "Hostname": hostname,
+                "ProcessID": process_id,
                 "TimeUnits": "seconds",
                 "StartTime": round(start_time, 3),
                 "EndTime": round(end_time, 3),

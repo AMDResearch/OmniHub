@@ -21,7 +21,7 @@ head_port=29400
 
 ## Settings for multi-node FSDP
 ## https://rocm.docs.amd.com/en/latest/how-to/tuning-guides/mi300x/workload.html#multi-node-fsdp-and-rccl-settings
-# export GPU_MAX_HW_QUEUE=1
+export GPU_MAX_HW_QUEUE=2
 
 # set the number of CPU threads to use for each task based on the number of cores
 export OMP_NUM_THREADS=$(( $(nproc --all) / $num_tasks_per_node ))
@@ -47,7 +47,7 @@ export OMP_NUM_THREADS=$(( $(nproc --all) / $num_tasks_per_node ))
 # export TORCH_NCCL_BLOCKING_WAIT=1
 
 ## Control whether to use high priority stream for the NCCL communicator.
-# export TORCH_NCCL_HIGH_PRIORITY=1
+export TORCH_NCCL_HIGH_PRIORITY=1
 
 ## Control the watchdog heartbeat timeout period after which the monitoring
 ## thread will abort the process.

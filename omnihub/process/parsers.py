@@ -339,6 +339,129 @@ class PytorchTraceParser(ProcessParser):
             self.parseTraceData(trace_data, output_file)
 
 
+class RcclInfoParser(ProcessParser):
+    def parse(self):
+        # Read the Node, Rank, Hostname, and ProcessID from the output of omnihub monitor.
+        # Use them to map the RCCL trace data to the correct rank.
+        omnihub_monitor_dir = f"{self.execution_dir}/tools/omnihub-monitor"
+        node_rank_map = {}
+        for p in pathlib.Path(omnihub_monitor_dir).glob("*.json"):
+            with open(p, "r") as f:
+                rank_data = json.load(f)
+            node = rank_data["Node"]
+            rank = rank_data["Rank"]
+            hostname = rank_data["Hostname"]
+            process_id = rank_data["ProcessID"]
+            node_rank_map[(hostname, process_id)] = {
+                "Node": node,
+                "Rank": rank,
+            }
+        if not node_rank_map:
+            self.log.warning(
+                "Unable to parse omnihub monitor data needed for RCCL info parser"
+            )
+            return
+
+        # Create a histogram of the number of times each RCCL collective type is called for each datatype.
+        # Possible collective opType functions are "AllGather" "AllReduce" "Broadcast" "Recv" "Reduce" "ReduceScatter" "SendRecv" "Send"
+        rccl_info_dir = f"{self.execution_dir}/tools/rccl-info"
+
+        # The datatype is an enum (ncclDataType_t) from /opt/rocm/include/rccl/rccl.h. Mapping them to their string representations
+        datatype_mapping = {
+            "0": "ncclInt8/ncclChar",
+            "1": "ncclUint8",
+            "2": "ncclInt32/ncclInt",
+            "3": "ncclUint32",
+            "4": "ncclInt64",
+            "5": "ncclUint64",
+            "6": "ncclFloat16/ncclHalf",
+            "7": "ncclFloat32/ncclFloat",
+            "8": "ncclFloat64/ncclDouble",
+            "9": "ncclBfloat16",
+            "10": "ncclFloat8e4m3",
+            "11": "ncclFloat8e5m2",
+        }
+
+        all_histograms = {}
+        txt_files = list(pathlib.Path(rccl_info_dir).glob("*.txt"))
+        if not txt_files:
+            self.log.warning("No RCCL info txt files found.")
+            return
+
+        for info_file in txt_files:
+            histogram = defaultdict(lambda: defaultdict(int))
+            info_file_name = info_file.name
+            # Extract host and process ID from file name: expecting format rccl-coll.%h.%p.txt
+            match_file = re.match(r"rccl-coll\.(.+?)\.(\d+)\.txt", info_file_name)
+            if not match_file:
+                self.log.warning(f"Unexpected filename format: {info_file_name}")
+                continue
+            host, pid = match_file.group(1), match_file.group(2)
+            # Get the node and rank from the node_rank_map. Host can be a substring of the hostname in the map.
+            node, rank = next(
+                (
+                    (v["Node"], v["Rank"])
+                    for k, v in node_rank_map.items()
+                    if host in k[0] and int(pid) == k[1]
+                ),
+                (None, None),
+            )
+            if node is None or rank is None:
+                self.log.warning(
+                    f"Unable to find node and rank for host {host} and pid {pid}"
+                )
+                continue
+            with open(info_file, "r") as f:
+                for line in f:
+                    # Parse the line to extract opType and datatype fields. Format is like below:
+                    # timestamp rank [1] NCCL INFO opType: opCount <opCount> sendbuff <sendBuff> recvbuff <recvBuff> count <count> datatype <datatype> op <op> root <root> comm <comm> [nranks=<nranks>] stream <stream> task <task> globalrank <globalrank>
+                    prefix = r"NCCL INFO\s+"
+                    op_type = r"(\w+):"
+                    op_count = r"\s+opCount\s+\S+"
+                    sendbuff = r"\s+sendbuff\s+\S+"
+                    recvbuff = r"\s+recvbuff\s+\S+"
+                    count = r"\s+count\s+\S+"
+                    datatype = r"\s+datatype\s+(\d+)"
+                    op_root_comm = r"\s+op\s+\S+\s+root\s+\S+\s+comm\s+\S+"
+                    optional_nranks = r"(?:\s+\[nranks=\S+\])?"
+                    stream_task_globalrank = (
+                        r"\s+stream\s+\S+\s+task\s+\S+\s+globalrank\s+\S+"
+                    )
+
+                    pattern = (
+                        prefix
+                        + op_type
+                        + op_count
+                        + sendbuff
+                        + recvbuff
+                        + count
+                        + datatype
+                        + op_root_comm
+                        + optional_nranks
+                        + stream_task_globalrank
+                    )
+
+                    match = re.search(pattern, line)
+                    if match:
+                        opType = match.group(1)
+                        datatype_num = match.group(2)
+                        datatype_str = datatype_mapping.get(datatype_num, "unknown")
+                        histogram[opType][datatype_str] += 1
+
+                # Store the histogram under a unique section name based on node and rank.
+                section_name = f"histogram.{node}.{rank}"
+                all_histograms[section_name] = {
+                    op: dict(dtypes) for op, dtypes in histogram.items()
+                }
+
+        # flatten the histogram data
+        records = util.flatten_dict(all_histograms)
+        # Dump all histograms into a single YAML file with unique sections.
+        output_filename = f"{self.processed_dir}/rccl-info-histograms.yaml"
+        with open(output_filename, "w") as f:
+            yaml.dump(records, f)
+
+
 class SysInfoParser(ProcessParser):
     def parse(self):
         omnihub_info_dir = f"{self.execution_dir}/sysinfo"

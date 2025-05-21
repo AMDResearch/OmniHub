@@ -196,7 +196,9 @@ def generate_job(
     args_tools_names = set(tools)
     if not args_tools_names.issubset(tool_names):
         unsupported = args_tools_names - tool_names
-        print(f"Unsupported tools: {', '.join(unsupported)}")
+        print(
+            f"Unsupported tools: {', '.join(unsupported)}. Choose from {', '.join(tool_names)}"
+        )
         sys.exit(1)
 
     args_tools_sources = set()
