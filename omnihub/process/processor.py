@@ -32,14 +32,12 @@ def process_execution(execution_dir):
     if os.path.isdir(f"{execution_dir}/sysinfo"):
         parser_registry.append(parsers.SysInfoParser(execution_dir))
 
-    if os.path.isdir(f"{execution_dir}/tools/omnistat"):
-        parser_registry.append(parsers.OmnistatReportParser(execution_dir))
-        parser_registry.append(parsers.OmnistatRangeParser(execution_dir))
-
-    if os.path.isdir(f"{execution_dir}/tools/omnistat-rocprofiler"):
-        parser_registry.append(
-            parsers.OmnistatReportParser(execution_dir, name="omnistat-rocprofiler")
-        )
+    for omnistat_variant in pathlib.Path(f"{execution_dir}/tools").glob("omnistat*"):
+        if omnistat_variant.is_dir():
+            name = omnistat_variant.name
+            parser_registry.append(parsers.OmnistatReportParser(execution_dir, name))
+            parser_registry.append(parsers.OmnistatParser(execution_dir, name))
+            parser_registry.append(parsers.OmnistatRangeParser(execution_dir, name))
 
     if os.path.isdir(f"{execution_dir}/tools/pytorch-trace"):
         parser_registry.append(parsers.PytorchTraceParser(execution_dir))
@@ -54,6 +52,7 @@ def process_execution(execution_dir):
     parser_registry.append(parsers.ReportCardParser(execution_dir))
 
     for parser in parser_registry:
+        parser.load()
         parser.parse()
 
 
