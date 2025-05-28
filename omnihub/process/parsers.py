@@ -343,87 +343,81 @@ class PytorchTraceParser(ProcessParser):
 
 
 class RcclInfoParser(ProcessParser):
-    def parse(self):
-        # Read the Node, Rank, Hostname, and ProcessID from the output of omnihub monitor.
-        # Use them to map the RCCL trace data to the correct rank.
-        omnihub_monitor_dir = f"{self.execution_dir}/tools/omnihub-monitor"
-        node_rank_map = {}
-        for p in pathlib.Path(omnihub_monitor_dir).glob("*.json"):
-            with open(p, "r") as f:
-                rank_data = json.load(f)
-            node = rank_data["Node"]
-            rank = rank_data["Rank"]
-            hostname = rank_data["Hostname"]
-            process_id = rank_data["ProcessID"]
-            node_rank_map[(hostname, process_id)] = {
-                "Node": node,
-                "Rank": rank,
-            }
-        if not node_rank_map:
+    def load(self):
+        omnihub_monitor_file = f"{self.processed_dir}/omnihub-monitor.yaml"
+        if not os.path.exists(omnihub_monitor_file):
             self.log.warning(
-                "Unable to parse omnihub monitor data needed for RCCL info parser"
+                f"Unable to find Omnihub monitor file: {omnihub_monitor_file}. Run the OmniHubMonitorParser first."
             )
             return
 
-        # Create a histogram of the number of times each RCCL collective type is called for each datatype.
+        with open(omnihub_monitor_file, "r") as f:
+            data = yaml.safe_load(f)
+
+        self.start_time = data["Start Timestamp"]
+        self.end_time = data["End Timestamp"]
+
+        # Check if the start and end times are valid
+        if not isinstance(self.start_time, (int, float)) or not isinstance(
+            self.end_time, (int, float)
+        ):
+            self.log.warning("Invalid start or end time in Omnihub monitor data")
+            return
+        if self.start_time >= self.end_time:
+            self.log.warning("Start time must be less than end time")
+            return
+
+    def parse(self):
+        # Create a histogram of the number of times each RCCL collective type is called for each datatype. Also collect the payload size and calculate the overall bandwidth.
         # Possible collective opType functions are "AllGather" "AllReduce" "Broadcast" "Recv" "Reduce" "ReduceScatter" "SendRecv" "Send"
         rccl_info_dir = f"{self.execution_dir}/tools/rccl-info"
 
-        # The datatype is an enum (ncclDataType_t) from /opt/rocm/include/rccl/rccl.h. Mapping them to their string representations
+        # The datatype is an enum (ncclDataType_t) from /opt/rocm/include/rccl/rccl.h. This maps the enum number to (datatype name, size in bytes)
         datatype_mapping = {
-            "0": "ncclInt8/ncclChar",
-            "1": "ncclUint8",
-            "2": "ncclInt32/ncclInt",
-            "3": "ncclUint32",
-            "4": "ncclInt64",
-            "5": "ncclUint64",
-            "6": "ncclFloat16/ncclHalf",
-            "7": "ncclFloat32/ncclFloat",
-            "8": "ncclFloat64/ncclDouble",
-            "9": "ncclBfloat16",
-            "10": "ncclFloat8e4m3",
-            "11": "ncclFloat8e5m2",
+            "0": ("ncclInt8", 1),
+            "1": ("ncclUint8", 1),
+            "2": ("ncclInt32", 4),
+            "3": ("ncclUint32", 4),
+            "4": ("ncclInt64", 8),
+            "5": ("ncclUint64", 8),
+            "6": ("ncclFloat16", 2),
+            "7": ("ncclFloat32", 4),
+            "8": ("ncclFloat64", 8),
+            "9": ("ncclBfloat16", 2),
+            "10": ("ncclFloat8e4m3", 1),
+            "11": ("ncclFloat8e5m2", 1),
         }
 
-        all_histograms = {}
-        txt_files = list(pathlib.Path(rccl_info_dir).glob("*.txt"))
-        if not txt_files:
-            self.log.warning("No RCCL info txt files found.")
-            return
-
-        for info_file in txt_files:
-            histogram = defaultdict(lambda: defaultdict(int))
-            info_file_name = info_file.name
-            # Extract host and process ID from file name: expecting format rccl-coll.%h.%p.txt
-            match_file = re.match(r"rccl-coll\.(.+?)\.(\d+)\.txt", info_file_name)
-            if not match_file:
-                self.log.warning(f"Unexpected filename format: {info_file_name}")
+        total_byte_counts = {}
+        # Generate per-rank data files with RCCL stats.
+        rank_dirs = pathlib.Path(rccl_info_dir).iterdir()
+        for rank_dir in rank_dirs:
+            rank = rank_dir.name
+            txt_files = list(rank_dir.glob("*.txt"))
+            if not txt_files:
+                self.log.warning(f"No RCCL info txt files found for rank {rank}")
                 continue
-            host, pid = match_file.group(1), match_file.group(2)
-            # Get the node and rank from the node_rank_map. Host can be a substring of the hostname in the map.
-            node, rank = next(
-                (
-                    (v["Node"], v["Rank"])
-                    for k, v in node_rank_map.items()
-                    if host in k[0] and int(pid) == k[1]
-                ),
-                (None, None),
-            )
-            if node is None or rank is None:
+            # there must be only one txt file per rank
+            if len(txt_files) > 1:
                 self.log.warning(
-                    f"Unable to find node and rank for host {host} and pid {pid}"
+                    f"Multiple RCCL info txt files found for rank {rank}, using the first one."
                 )
-                continue
+            info_file = txt_files[0]
+
+            counts = defaultdict(lambda: defaultdict(int))
+            byte_counts = defaultdict(lambda: defaultdict(int))
             with open(info_file, "r") as f:
                 for line in f:
                     # Parse the line to extract opType and datatype fields. Format is like below:
                     # timestamp rank [1] NCCL INFO opType: opCount <opCount> sendbuff <sendBuff> recvbuff <recvBuff> count <count> datatype <datatype> op <op> root <root> comm <comm> [nranks=<nranks>] stream <stream> task <task> globalrank <globalrank>
-                    prefix = r"NCCL INFO\s+"
+                    timestamp_str = r"^(\d+\.\d+)"
+                    local_rank_str = r"\s+\S+\s+\[(\d+)\]"
+                    info = r"\s+NCCL INFO\s+"
                     op_type = r"(\w+):"
                     op_count = r"\s+opCount\s+\S+"
                     sendbuff = r"\s+sendbuff\s+\S+"
                     recvbuff = r"\s+recvbuff\s+\S+"
-                    count = r"\s+count\s+\S+"
+                    count = r"\s+count\s+(\d+)"
                     datatype = r"\s+datatype\s+(\d+)"
                     op_root_comm = r"\s+op\s+\S+\s+root\s+\S+\s+comm\s+\S+"
                     optional_nranks = r"(?:\s+\[nranks=\S+\])?"
@@ -432,7 +426,9 @@ class RcclInfoParser(ProcessParser):
                     )
 
                     pattern = (
-                        prefix
+                        timestamp_str
+                        + local_rank_str
+                        + info
                         + op_type
                         + op_count
                         + sendbuff
@@ -446,22 +442,56 @@ class RcclInfoParser(ProcessParser):
 
                     match = re.search(pattern, line)
                     if match:
-                        opType = match.group(1)
-                        datatype_num = match.group(2)
-                        datatype_str = datatype_mapping.get(datatype_num, "unknown")
-                        histogram[opType][datatype_str] += 1
+                        timestamp, local_rank, opType, dtype_count, dtype_id = (
+                            match.group(1, 2, 3, 4, 5)
+                        )
+                        timestamp = float(timestamp)
+                        if not (self.start_time <= timestamp <= self.end_time):
+                            continue
+                        dtype_name, dtype_size = datatype_mapping.get(
+                            dtype_id, ("unknown", 0)
+                        )
+                        counts[opType][dtype_name] += 1
+                        byte_counts[opType][dtype_name] += int(dtype_size) * int(
+                            dtype_count
+                        )
 
-                # Store the histogram under a unique section name based on node and rank.
-                section_name = f"histogram.{node}.{rank}"
-                all_histograms[section_name] = {
-                    op: dict(dtypes) for op, dtypes in histogram.items()
-                }
+            output_filename = (
+                f"{self.processed_dir}/rccl-info-collectives.histogram.{rank}.yaml"
+            )
+            records_counts = {
+                f"{op}#{dtype}": count
+                for op, dtypes in counts.items()
+                for dtype, count in dtypes.items()
+            }
+            with open(output_filename, "w") as f:
+                yaml.dump(records_counts, f)
 
-        # flatten the histogram data
-        records = util.flatten_dict(all_histograms)
-        # Dump all histograms into a single YAML file with unique sections.
-        output_filename = f"{self.processed_dir}/rccl-info-histograms.yaml"
-        with open(output_filename, "w") as f:
+            byte_counts_section = f"byte_counts.{rank}"
+            output_filename = (
+                f"{self.processed_dir}/rccl-info-collectives.bytes.{rank}.yaml"
+            )
+            total_byte_counts[byte_counts_section] = {
+                f"{op}#{dtype}": value
+                for op, dtypes in byte_counts.items()
+                for dtype, value in dtypes.items()
+            }
+            with open(output_filename, "w") as f:
+                yaml.dump(total_byte_counts[byte_counts_section], f)
+
+        # Calculate bandwidth in MB/s from total bytes and duration
+        total_byte_counts_df = pd.DataFrame(total_byte_counts).fillna(0)
+        total_byte_counts_float = float(total_byte_counts_df.sum(axis=1).sum())
+
+        records = {}
+        duration = self.end_time - self.start_time
+        records["RCCL Collectives Payload (MB)"] = total_byte_counts_float / (1024**2)
+        records["RCCL Collectives Bandwidth (MiB/s)"] = (
+            total_byte_counts_float / (1024**2) / duration
+        )
+
+        # Write the summarized data to a YAML file
+        with open(f"{self.processed_dir}/rccl-info-collectives.yaml", "w") as f:
             yaml.dump(records, f)
 
 
@@ -825,6 +855,11 @@ class ReportCardParser(ProcessParser):
                 "Network Rx All (MiB/s) Mean",
                 None,
             ),
+            "RCCL Collectives Bandwidth (MiB/s)": (
+                "rccl-info-collectives",
+                "RCCL Collectives Bandwidth (MiB/s)",
+                None,
+            ),
             "GPU energy (kWh)": ("omnihub-monitor", "GPU energy (kWh)", None),
             "Duration (s)": ("omnihub-monitor", "Duration (s)", None),
         }
@@ -834,6 +869,7 @@ class ReportCardParser(ProcessParser):
             "job-status": f"{self.processed_dir}/job-status.yaml",
             "omnistat-range": f"{self.processed_dir}/omnistat-range.yaml",
             "omnihub-monitor": f"{self.processed_dir}/omnihub-monitor.yaml",
+            "rccl-info-collectives": f"{self.processed_dir}/rccl-info-collectives.yaml",
         }
 
         # Initialize data with default values per the mapping
