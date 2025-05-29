@@ -1,6 +1,7 @@
 # Developer Corner
 ## Pre-commit
-We use pre-commit hooks to standardize some coding standards and guidelines across the codebase. After cloning this repo, follow the below steps to install pre-commit hooks in your developer environment.
+We use pre-commit hooks to standardize some coding standards and guidelines across the codebase. After cloning this
+repo, follow the below steps to install pre-commit hooks in your developer environment.
 
 ```
 # Using pip
