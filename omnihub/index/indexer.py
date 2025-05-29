@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import pathlib
+import sys
 from itertools import chain
 
 import pandas
@@ -62,6 +63,12 @@ def load_tabular_data(results_dir):
             row = pandas.concat(tabular_data, axis=1)
             rows.append(row)
 
+    if not rows:
+        raise RuntimeError(
+            f"No processed data found in '{results_dir}'. "
+            "Please ensure omnihub-process has run successfully before invoking omnihub-index."
+        )
+
     df = pandas.concat(rows)
     df.drop(ignore_fields, axis=1, inplace=True)
 
@@ -94,6 +101,13 @@ def main():
         required=True,
         metavar="",
     )
+    required_group.add_argument(
+        "--output",
+        help="Base output file or directory name",
+        type=str,
+        metavar="",
+        required=True,
+    )
     optional_group = parser.add_argument_group("Optional arguments")
     optional_group.add_argument(
         "--format",
@@ -102,17 +116,14 @@ def main():
         default="csv",
         metavar="",
     )
-    optional_group.add_argument(
-        "--output",
-        help="Base output file or directory name (default: index)",
-        type=str,
-        default="index",
-        metavar="",
-    )
 
     args = parser.parse_args()
 
-    df = load_tabular_data(args.results_dir)
+    try:
+        df = load_tabular_data(args.results_dir)
+    except RuntimeError as e:
+        print(f"[omnihub-index] ERROR: {e}")
+        sys.exit(1)
 
     if args.format == "csv":
         df.to_csv(f"{args.output}.csv")

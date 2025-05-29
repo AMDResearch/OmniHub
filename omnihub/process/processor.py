@@ -98,11 +98,31 @@ def main():
         if not os.path.isdir(processed_dir) or args.force:
             execution_dirs.append(execution_dir)
 
-    print(f"Found {len(execution_dirs)} executions to process")
+    print(f"Found {len(execution_dirs)} executions to process.")
 
+    futures = []
+    # Use ProcessPoolExecutor to process each execution directory in parallel
     with ProcessPoolExecutor(max_workers=args.jobs) as executor:
-        for execution_dir in execution_dirs:
+        futures = [
             executor.submit(process_execution, execution_dir)
+            for execution_dir in execution_dirs
+        ]
+    # Ensure all executions complete
+    for future in futures:
+        future.result()
+
+    # After processing, count executions where "processed-data" folder exists
+    success_count = 0
+    for execution_dir in execution_dirs:
+        processed_dir = f"{execution_dir}/processed-data"
+        if not os.path.isdir(processed_dir):
+            logging.warning(f"Processed data directory not found: {processed_dir}")
+        else:
+            success_count += 1
+    failure_count = len(execution_dirs) - success_count
+    print(
+        f"Processed data directories found for {success_count} executions and missing for {failure_count} executions."
+    )
 
 
 if __name__ == "__main__":
