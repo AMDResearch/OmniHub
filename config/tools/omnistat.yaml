@@ -18,7 +18,7 @@ tools:
     pre-execute: |
       # Configure and start Omnistat
       export HSA_TOOLS_LIB=$ROCM_PATH/lib/librocprofiler64.so
-      export OMNISTAT_CONFIG=$shared_dir/tools/omnistat-rocprofiler/omnihub.config
+      export OMNISTAT_CONFIG=$shared_dir/tools/omnistat-rocprofiler/omnihub.$gpu_arch.config
       export OMNISTAT_VICTORIA_DATADIR=$results_dir/tools/omnistat-rocprofiler/data
       omnistat_dir=$shared_dir/tools/omnistat-rocprofiler/venv/bin/
       mkdir -p tools/omnistat-rocprofiler
