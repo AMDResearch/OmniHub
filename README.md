@@ -90,18 +90,19 @@ Refer to [this document](docs/generate-job-examples.md) for more examples of usi
 
 ### List of Supported Tools
 
-| Tool                    | Description                                                                 |
-| :---------------------- | :-------------------------------------------------------------------------- |
-| `rocprof-compute`       | Collect all performance counters.                                           |
-| `omnistat`              | Low-overhead system metrics, sampled at 1s intervals.                       |
-| `omnistat-rocprofiler`  | Low-overhead performance counter collection, sampled at 1s intervals.       |
-| `omnitrace`             | Application tracing.                                                        |
-| `pytorch-stats`         | Collects detailed statistics of PyTorch operations.                         |
-| `pytorch-trace`         | PyTorch execution traces compatible with TensorBoard.                       |
-| `rocprofv1-stats`       | Kernel execution stats (to be deprecated soon).                             |
-| `rocprofv2-pmc`         | Profiling with performance counters ([configuration](config/rocprof.txt)).  |
-| `rocprofv3-stats`       | Kernel execution stats.                                                     |
-| `rccl-info`             | Collects statistics of RCCL collective calls                                |
+| Tool                        | Description                                                                            |
+| :-------------------------- | :------------------------------------------------------------------------------------- |
+| `rocprof-compute`           | Collect all performance counters.                                                      |
+| `omnistat`                  | Low-overhead system metrics, sampled at 1s intervals.                                  |
+| `omnistat-rocprofiler-pmc1` | Low-overhead performance counter collection, sampled at 1s intervals, 1st set of PMCs. |
+| `omnistat-rocprofiler-pmc2` | Low-overhead performance counter collection, sampled at 1s intervals, 2nd set of PMCs. |
+| `omnitrace`                 | Application tracing.                                                                   |
+| `pytorch-stats`             | Collects detailed statistics of PyTorch operations.                                    |
+| `pytorch-trace`             | PyTorch execution traces compatible with TensorBoard.                                  |
+| `rocprofv1-stats`           | Kernel execution stats (to be deprecated soon).                                        |
+| `rocprofv2-pmc`             | Profiling with performance counters ([configuration](config/rocprof.txt)).             |
+| `rocprofv3-stats`           | Kernel execution stats.                                                                |
+| `rccl-info`                 | Collects statistics of RCCL collective calls                                           |
 
 ### Example Applications
 

@@ -14,19 +14,35 @@ tools:
       $omnistat_dir/omnistat-usermode --stopexporters
       $omnistat_dir/omnistat-query --job $SLURM_JOB_ID --interval 1 --export $results_dir/tools/omnistat > $results_dir/tools/omnistat/report.txt
       $omnistat_dir/omnistat-usermode --stopserver
-  - name: omnistat-rocprofiler
+  - name: omnistat-rocprofiler-pmc1
     pre-execute: |
       # Configure and start Omnistat
       export HSA_TOOLS_LIB=$ROCM_PATH/lib/librocprofiler64.so
-      export OMNISTAT_CONFIG=$shared_dir/tools/omnistat-rocprofiler/omnihub.$gpu_arch.config
-      export OMNISTAT_VICTORIA_DATADIR=$results_dir/tools/omnistat-rocprofiler/data
+      export OMNISTAT_CONFIG=$shared_dir/tools/omnistat-rocprofiler/omnihub.$gpu_arch.1.config
+      export OMNISTAT_VICTORIA_DATADIR=$results_dir/tools/omnistat-rocprofiler-pmc1/data
       omnistat_dir=$shared_dir/tools/omnistat-rocprofiler/venv/bin/
-      mkdir -p tools/omnistat-rocprofiler
-      cd tools/omnistat-rocprofiler
+      mkdir -p tools/omnistat-rocprofiler-pmc1
+      cd tools/omnistat-rocprofiler-pmc1
       $omnistat_dir/omnistat-usermode --start --interval 1
       cd -
     post-execute: |-
       # Stop Omnistat
       $omnistat_dir/omnistat-usermode --stopexporters
-      $omnistat_dir/omnistat-query --job $SLURM_JOB_ID --interval 1 --export $results_dir/tools/omnistat-rocprofiler > $results_dir/tools/omnistat-rocprofiler/report.txt
+      $omnistat_dir/omnistat-query --job $SLURM_JOB_ID --interval 1 --export $results_dir/tools/omnistat-rocprofiler-pmc1 > $results_dir/tools/omnistat-rocprofiler-pmc1/report.txt
+      $omnistat_dir/omnistat-usermode --stopserver
+  - name: omnistat-rocprofiler-pmc2
+    pre-execute: |
+      # Configure and start Omnistat
+      export HSA_TOOLS_LIB=$ROCM_PATH/lib/librocprofiler64.so
+      export OMNISTAT_CONFIG=$shared_dir/tools/omnistat-rocprofiler/omnihub.$gpu_arch.2.config
+      export OMNISTAT_VICTORIA_DATADIR=$results_dir/tools/omnistat-rocprofiler-pmc2/data
+      omnistat_dir=$shared_dir/tools/omnistat-rocprofiler/venv/bin/
+      mkdir -p tools/omnistat-rocprofiler-pmc2
+      cd tools/omnistat-rocprofiler-pmc2
+      $omnistat_dir/omnistat-usermode --start --interval 1
+      cd -
+    post-execute: |-
+      # Stop Omnistat
+      $omnistat_dir/omnistat-usermode --stopexporters
+      $omnistat_dir/omnistat-query --job $SLURM_JOB_ID --interval 1 --export $results_dir/tools/omnistat-rocprofiler-pmc2 > $results_dir/tools/omnistat-rocprofiler-pmc2/report.txt
       $omnistat_dir/omnistat-usermode --stopserver
