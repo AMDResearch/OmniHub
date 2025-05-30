@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 results_dir=$1
 
 mkdir -p ${results_dir}/sysinfo
