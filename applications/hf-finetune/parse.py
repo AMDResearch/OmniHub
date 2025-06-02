@@ -17,7 +17,10 @@ output_file = f"{args.execution_dir}/processed-data/app-parser.yaml"
 
 
 def parse_log(log_file, output_file):
-    with open(log, "r") as f:
+    if not log_file.is_file():
+        return False
+
+    with open(log_file, "r") as f:
         lines = f.readlines()
 
     if len(lines) == 0:
