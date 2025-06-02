@@ -29,8 +29,11 @@ def process_execution(execution_dir):
     if os.path.isdir(f"{execution_dir}/tools/omnihub-monitor"):
         parser_registry.append(parsers.OmnihubMonitorParser(execution_dir))
 
-    if os.path.isdir(f"{execution_dir}/sysinfo"):
-        parser_registry.append(parsers.SysInfoParser(execution_dir))
+    # TODO: Enable sys info parser when we are able to handle more complex
+    # data. It's currently disabled because the data is hierarchical with a
+    # lot of detail that doesn't translate well when flattened.
+    # if os.path.isdir(f"{execution_dir}/sysinfo"):
+    #     parser_registry.append(parsers.SysInfoParser(execution_dir))
 
     for omnistat_variant in pathlib.Path(f"{execution_dir}/tools").glob("omnistat*"):
         if omnistat_variant.is_dir():
