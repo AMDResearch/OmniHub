@@ -116,6 +116,18 @@ Explore [example applications](applications/) that demonstrate the usage of vari
 - **PyTorch Training:** Train a simple CNN with PyTorch.
 - **PyTorch Inference:** Run inference on a simple CNN.
 
+> **Optional Note:** To review vLLM benchmark scripts, launch an OmniHub container and navigate to
+> `/app/vllm/benchmarks`.
+>
+> For Apptainer, run:
+>
+> ```console
+> apptainer shell /path/to/omnihub-image.sif
+> cd /app/vllm/benchmarks/
+> ```
+>
+> See [docs/images.md](docs/images.md) for cluster-specific image paths.
+
 All examples include YAML configuration files specifying the main entrypoint, tensor parallel size, and other settings.
 A snippet of the Hugging Face inference configuration file is provided below.
 
@@ -136,10 +148,10 @@ ModelArguments:
 The OmniHub sweep tool ([`omnihub-sweep`](omnihub-sweep)) automates job generation and submission. It creates different
 job setups based on CLI flags and generates application configurations from templates.
 
-Application templates let you list multiple values for certain fields. The sweep tool then produces every possible
-combination of those fields. For example, the following template that sweeps the input and output lengths for the VLLM
-latency benchmark will generate 4 configuration files with different combinations of `input_len`/`output_len`: 32/128,
-32/256, 64/128, and 64/256.
+Application templates are based off application config files and let you list multiple values for certain fields. The
+sweep tool then produces every possible combination of those fields. For example, the following template that sweeps the
+input and output lengths for the vLLM latency benchmark will generate 4 configuration files with different combinations
+of `input_len`/`output_len`: 32/128, 32/256, 64/128, and 64/256.
 ```yaml
 entrypoint: /app/vllm/benchmarks/benchmark_latency.py
 model: meta-llama/Llama-3.1-8B-Instruct
@@ -153,6 +165,8 @@ output_len:
 batch_size: 8
 # more configuration params go here...
 ```
+
+> **Note:** For creating a template for vLLM throughput benchmark or any example app, simply start with the sample config file in the app directory.
 
 The `omnihub-sweep` CLI also allows sweeping over job-related options, including:
 - `partitions`: cluster partitions.
