@@ -170,21 +170,18 @@ def main():
         help="Path to OmniHub",
         type=str,
         required=True,
-        metavar="",
     )
     required_group.add_argument(
         "--sweep-dir",
         help="Sweep directory",
         type=str,
         required=True,
-        metavar="",
     )
     required_group.add_argument(
         "--template",
         help="Application configuration template",
         type=str,
         required=True,
-        metavar="",
     )
     optional_group = parser.add_argument_group("Optional arguments")
     optional_group.add_argument(
@@ -192,7 +189,6 @@ def main():
         help="Name of the cluster:\n\thpcfund (default)\n\tradha",
         type=str,
         default="hpcfund",
-        metavar="",
     )
     optional_group.add_argument(
         "--partitions",
@@ -200,7 +196,6 @@ def main():
         type=str,
         nargs="+",
         default=None,
-        metavar="",
     )
     optional_group.add_argument(
         "--num-nodes",
@@ -208,7 +203,6 @@ def main():
         type=int,
         nargs="+",
         default=[1],
-        metavar="",
     )
     optional_group.add_argument(
         "--platform",
@@ -216,14 +210,12 @@ def main():
         type=str,
         required=False,
         default="apptainer",
-        metavar="",
     )
     optional_group.add_argument(
         "--runner",
         help="Distributed runner. Required for multiple nodes.\n\tmanual\n\ttorchrun",
         type=str,
         required=False,
-        metavar="",
     )
     optional_group.add_argument(
         "--tools",
@@ -234,21 +226,18 @@ def main():
         nargs="+",
         action="append",
         default=None,
-        metavar="",
     )
     optional_group.add_argument(
         "--time-limit",
         help="Time limit for the SLURM job as an integer followed by a time unit (default: 1h). Examples: 120s, 30m, 5h.",
         type=str,
         default="1h",
-        metavar="",
     )
     optional_group.add_argument(
         "--delay",
         help="Seconds between job submissions",
         type=int,
         default=60,
-        metavar="",
     )
     optional_group.add_argument(
         "--dry-run",

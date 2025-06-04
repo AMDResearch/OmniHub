@@ -477,14 +477,13 @@ def main():
     required_group = parser.add_argument_group("Required arguments")
     optional_group = parser.add_argument_group("Optional arguments")
     required_group.add_argument(
-        "--omnihub-dir", help="Path to OmniHub", type=str, required=True, metavar=""
+        "--omnihub-dir", help="Path to OmniHub", type=str, required=True
     )
     required_group.add_argument(
         "--app-config",
         help="Path to the application configuration file (relative to OmniHub directory)",
         type=str,
         required=True,
-        metavar="",
     )
     optional_group.add_argument(
         "--app-args",
@@ -492,21 +491,18 @@ def main():
         type=str,
         required=False,
         default="",
-        metavar="",
     )
     optional_group.add_argument(
         "--num-nodes",
         help="Number of nodes (default: 1)",
         type=int,
         default=1,
-        metavar="",
     )
     optional_group.add_argument(
         "--partition",
         help="Partition of the cluster",
         type=str,
         required=False,
-        metavar="",
     )
     optional_group.add_argument(
         "--rocm-version",
@@ -514,7 +510,6 @@ def main():
         type=str,
         required=False,
         default="6.3.1",
-        metavar="",
     )
     optional_group.add_argument(
         "--platform",
@@ -522,21 +517,18 @@ def main():
         type=str,
         required=False,
         default="apptainer",
-        metavar="",
     )
     optional_group.add_argument(
         "--cluster",
         help="Name of the cluster:\n\thpcfund (default)\n\tradha",
         type=str,
         default="hpcfund",
-        metavar="",
     )
     optional_group.add_argument(
         "--runner",
         help="Distributed runner. Required for multiple nodes.\n\tmanual\n\ttorchrun",
         type=str,
         required=False,
-        metavar="",
     )
     optional_group.add_argument(
         "--tools",
@@ -546,21 +538,18 @@ def main():
         type=str,
         nargs="+",
         default=[],
-        metavar="",
     )
     optional_group.add_argument(
         "--time-limit",
         help="Time limit for the SLURM job as an integer followed by a time unit (default: 1h). Examples: 120s, 30m, 5h.",
         type=str,
         default="1h",
-        metavar="",
     )
     optional_group.add_argument(
         "--output",
         help="Write generated job to a file (default: stdout).",
         type=str,
         default=None,
-        metavar="",
     )
 
     args = parser.parse_args()

@@ -74,7 +74,6 @@ def main():
         help="Path to OmniHub results",
         type=str,
         required=True,
-        metavar="",
     )
     optional_group = parser.add_argument_group("Optional arguments")
     optional_group.add_argument(
@@ -83,7 +82,6 @@ def main():
         help="Number of parallel jobs to run (default: 1)",
         type=int,
         default=1,
-        metavar="",
     )
     optional_group.add_argument(
         "--force",

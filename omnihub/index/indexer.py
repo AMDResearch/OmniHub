@@ -99,13 +99,11 @@ def main():
         help="Path to OmniHub results",
         type=str,
         required=True,
-        metavar="",
     )
     required_group.add_argument(
         "--output",
         help="Base output file or directory name",
         type=str,
-        metavar="",
         required=True,
     )
     optional_group = parser.add_argument_group("Optional arguments")
@@ -114,7 +112,6 @@ def main():
         help="Output format:\n\t{}".format("\n\t".join(sorted(formats))),
         type=str,
         default="csv",
-        metavar="",
     )
 
     args = parser.parse_args()
