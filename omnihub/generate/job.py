@@ -84,6 +84,8 @@ def generate_job(
     platform="apptainer",
     cluster="hpcfund",
     partition=None,
+    include_nodelist=[],
+    exclude_nodelist=[],
     runner=None,
     tools=[],
     time_limit="1h",
@@ -428,6 +430,13 @@ def generate_job(
 
     bash_variables = [f"{x[0]}={x[1]}" for x in variables]
 
+    # generate sbatch extra options based on include and exclude nodelists
+    sbatch_extra_options = []
+    if include_nodelist:
+        sbatch_extra_options.append(f"#SBATCH --nodelist={','.join(include_nodelist)}")
+    if exclude_nodelist:
+        sbatch_extra_options.append(f"#SBATCH --exclude={','.join(exclude_nodelist)}")
+
     # Generate bash variables for Docker-related variables with a `docker_` prefix;
     # allows mapping volumes in the docker CLI, for example:
     #   -v $omnihub_dir:$docker_omnihub_dir`
@@ -439,6 +448,9 @@ def generate_job(
         "partition": partition_name,
         "num_nodes": num_nodes,
         "variables": "\n".join(bash_variables),
+        "sbatch_extra_options": (
+            "\n".join(sbatch_extra_options) if sbatch_extra_options else ""
+        ),
         "head_host_command": head_host_commands[cluster],
         "num_tasks_per_node": num_tasks_per_node,
         "num_gpus_per_node": num_gpus_per_node,
@@ -503,6 +515,20 @@ def main():
         help="Partition of the cluster",
         type=str,
         required=False,
+    )
+    optional_group.add_argument(
+        "--include-nodelist",
+        help="List of nodes to include in the job.",
+        type=str,
+        nargs="+",
+        default=[],
+    )
+    optional_group.add_argument(
+        "--exclude-nodelist",
+        help="List of nodes to exclude from the job.",
+        type=str,
+        nargs="+",
+        default=[],
     )
     optional_group.add_argument(
         "--rocm-version",

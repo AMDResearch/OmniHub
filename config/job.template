@@ -6,6 +6,7 @@
 #SBATCH --tasks-per-node=$num_tasks_per_node
 #SBATCH -t $time_limit
 #SBATCH -p $partition
+$sbatch_extra_options
 
 $variables
 
