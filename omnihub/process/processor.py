@@ -6,12 +6,24 @@ import subprocess
 import sys
 from concurrent.futures import ProcessPoolExecutor
 
+import yaml
+
 from omnihub.process import parsers
 
 logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
 
 
-def process_execution(execution_dir):
+def process_execution(execution_dir, strict_exit_code=False):
+    # Only check the exit_code if strict_exit_code is True
+    if strict_exit_code:
+        with open(f"{execution_dir}/job-status.yaml", "r") as f:
+            data = yaml.safe_load(f)
+        if data.get("exit_code") != 0:
+            logging.warning(
+                f"Skipped processing job in {execution_dir} because it did not complete successfully. Exit code: {data.get('exit_code')}"
+            )
+            return
+
     parser_registry = []
 
     processed_dir = f"{execution_dir}/processed-data"
@@ -89,9 +101,17 @@ def main():
         action="store_true",
         default=False,
     )
+    optional_group.add_argument(
+        "--successful-executions",
+        help=(
+            "Process only successful executions based on their exit code. "
+            "Executions with a non-zero exit code will be skipped."
+        ),
+        action="store_true",
+        default=False,
+    )
 
     args = parser.parse_args()
-
     execution_dirs = []
     for job in pathlib.Path(args.results_dir).rglob("job.sh"):
         execution_dir = job.parent
@@ -105,7 +125,9 @@ def main():
     # Use ProcessPoolExecutor to process each execution directory in parallel
     with ProcessPoolExecutor(max_workers=args.jobs) as executor:
         futures = [
-            executor.submit(process_execution, execution_dir)
+            executor.submit(
+                process_execution, execution_dir, args.successful_executions
+            )
             for execution_dir in execution_dirs
         ]
     # Ensure all executions complete
