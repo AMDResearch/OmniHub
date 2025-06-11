@@ -50,16 +50,28 @@ def generate_sweep(
     if len(tools) == 0:
         tools.append([])
 
+    # Create sweep directory and subdirectories
+    try:
+        sweep_path = pathlib.Path(sweep_dir)
+        configurations_path = sweep_path / "configurations"
+        jobs_path = sweep_path / "jobs"
+        sweep_path.mkdir(exist_ok=True)
+        configurations_path.mkdir(exist_ok=True)
+        jobs_path.mkdir(exist_ok=True)
+    except Exception as e:
+        print(f"Unexpected error while creating diretories: {e}")
+        sys.exit(1)
+
     # Maintain a list of dicts for serialization, and an equivalent set of
     # tuples to check whether a particular job has been submitted.
     submitted_list = []
     submitted_set = set()
-    submitted_file = f"{sweep_dir}/submitted.yaml"
+    submitted_file = sweep_path / "submitted.yaml"
 
-    config_files = list(pathlib.Path(sweep_dir).glob("config-*.yaml"))
+    config_files = list(configurations_path.glob("config-*.yaml"))
     num_generated = len(config_files)
     if num_generated == 0:
-        _, num_generated = generate_app_config(sweep_dir, template)
+        _, num_generated = generate_app_config(configurations_path, template)
         print(f"Starting a new sweep")
         print(f".. Generated configurations: {num_generated}")
 
@@ -80,12 +92,13 @@ def generate_sweep(
         print(f".. Number of submitted jobs: {len(submitted_set)}")
         print(f".. Number of remaining jobs: {num_remaining}")
 
-    config_files = list(pathlib.Path(sweep_dir).glob("config-*.yaml"))
+    config_files = list(configurations_path.glob("config-*.yaml"))
 
     for p in partitions:
         for n in num_nodes:
             for t in tools:
-                toolset = ",".join(t) if len(t) > 0 else "-"
+                toolset = ",".join(t) if len(t) > 0 else "none"
+                safe_toolset = "_".join(t) if len(t) > 0 else "none"
 
                 for c in config_files:
                     submission_tuple = (p, n, frozenset(t), c.name)
@@ -93,6 +106,10 @@ def generate_sweep(
                         continue
 
                     print(f"Submitting job: {p}/{n}/{toolset}/{c.name}")
+                    # Always use a descriptive filename for each job script
+                    safe_config = c.name.replace(".yaml", "")
+                    job_filename = f"job-{p}-{n}-{safe_toolset}-{safe_config}.sh"
+                    job_filepath = jobs_path / job_filename
                     generate_job(
                         config_dir=config_dir,
                         omnihub_dir=omnihub_dir,
@@ -106,14 +123,14 @@ def generate_sweep(
                         runner=runner,
                         tools=list(t),
                         time_limit=time_limit,
-                        output=f"{sweep_dir}/job.sh",
+                        output=str(job_filepath),
                     )
 
                     if dry_run:
                         continue
 
                     result = subprocess.run(
-                        ["sbatch", "--parsable", f"{sweep_dir}/job.sh"],
+                        ["sbatch", "--parsable", str(job_filepath)],
                         capture_output=True,
                         text=True,
                     )
@@ -140,9 +157,6 @@ def generate_sweep(
 
                     with open(submitted_file, "w") as f:
                         yaml.dump(submitted_list, f)
-
-                    job_path = pathlib.Path(f"{sweep_dir}/job.sh")
-                    job_path.unlink()
 
                     time.sleep(delay)
 
