@@ -651,10 +651,33 @@ class OmnistatParser(ProcessParser):
 
         return result
 
+    def parse_rocprofiler_data(self):
+        result = {}
+
+        metrics = ["omnistat_rocprofiler"]
+        df = self.parse_csv("omnistat-rocprofiler.csv", metrics, levels=4)
+
+        start_time = df.index[0]
+        end_time = df.index[-1]
+        duration = float(end_time - start_time)
+
+        if duration <= 0:
+            self.log.warning("Insufficient data in CSV file.")
+            return result
+
+        df = df.iloc[-1] - df.iloc[0]
+        df = df.groupby(level="counter").sum()
+        for counter, value in df.items():
+            result[counter] = value
+
+        return result
+
     def parse(self):
         result = {}
         result.update(self.parse_rocm_data())
         result.update(self.parse_network_data())
+        if self.variant_name.startswith("omnistat-rocprofiler"):
+            result.update(self.parse_rocprofiler_data())
         with open(self.output_file, "w") as f:
             yaml.dump(result, f)
 
