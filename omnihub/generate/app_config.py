@@ -10,9 +10,22 @@ from yaml.representer import Representer
 # defined in application templates, we'll check whether the elements in the
 # list (values) match the configuration. When all elements match, the
 # configuration can be skipped.
-conflicts = {
-    "SFTConfig": [("fp16", True), ("bf16", True)],
-    "BitsAndBytesConfigDataclass": [("load_in_4bit", True), ("load_in_8bit", True)],
+match_conflicts = {
+    "SFTConfig": [
+        [("fp16", True), ("bf16", True)],
+    ],
+    "BitsAndBytesConfigDataclass": [
+        [("load_in_4bit", True), ("load_in_8bit", True)],
+    ],
+}
+
+# Definition of configurations where only one of the keys can be set to a non-empty value. When one of the keys is set,
+# the other key must be empty. When both keys are set, the configuration can be skipped. Each section key maps to a list
+# of conflict rules. Each conflict rule is a list of (key, expected_default_value) pairs.
+inv_match_conflicts = {
+    "SFTConfig": [
+        [("fsdp", ""), ("deepspeed", "")],
+    ],
 }
 
 
@@ -42,6 +55,22 @@ def to_nested(d):
             current_dict = current_dict[k]
         current_dict[leaf] = v
     return nested
+
+
+def has_conflict(conf, conflict_dict, check_fn):
+    # Returns True if any section in conflict_dict violates the check_fn.
+    # check_fn is a callable that compares the actual and expected value.
+    for section, conflict_rules in conflict_dict.items():
+        if section not in conf:
+            continue
+        for rule in conflict_rules:
+            # If all conditions are met, we return True
+            # This means that the configuration is a conflict
+            if all(
+                check_fn(conf[section].get(key), expected) for key, expected in rule
+            ):
+                return True
+    return False
 
 
 # Generate sets of configuration files
@@ -101,17 +130,19 @@ def generate_app_config(output_dir, template_file):
     for i, combination in enumerate(combinations):
         conf = to_nested(combination)
 
-        conflict = False
-        for section, conflict_list in conflicts.items():
-            if not section in conf:
-                continue
-            evaluate = [conf[section][k] == v for k, v in conflict_list]
-            if all(evaluate):
-                conflict = True
-                num_conflicts += 1
-                break
+        # Check normal match - if a section has all values equal, that's a violation.
+        if has_conflict(
+            conf, match_conflicts, lambda actual, expected: actual == expected
+        ):
+            num_conflicts += 1
+            continue
 
-        if conflict:
+        # Check inverted match - if a section has all values not equal, that's a violation.
+        # (e.g., either fsdp or deepspeed can be set, but not both)
+        if has_conflict(
+            conf, inv_match_conflicts, lambda actual, expected: actual != expected
+        ):
+            num_conflicts += 1
             continue
 
         conf_id = str(i).zfill(5)

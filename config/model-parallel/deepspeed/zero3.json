@@ -1,0 +1,14 @@
+{
+    "train_batch_size": "auto",
+    "train_micro_batch_size_per_gpu": "auto",
+    "zero_optimization": {
+        "stage": 3,
+        "contiguous_gradients": true,
+        "overlap_comm": true,
+        "reduce_bucket_size": "auto",
+        "stage3_prefetch_bucket_size": "auto",
+        "stage3_param_persistence_threshold": "auto",
+        "stage3_gather_16bit_weights_on_model_save": "auto",
+        "zero3_init_flag": true
+    }
+}

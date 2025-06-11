@@ -9,21 +9,7 @@ SFTConfig:
   dataset_text_field: text
   # dont save checkpoints
   save_strategy: "no"
-  deepspeed:
-    train_batch_size: auto
-    train_micro_batch_size_per_gpu: auto
-    # set to 0, 1, 2, or 3
-    zero_optimization:
-      stage: 2
-      # set these if zero 3
-  #   reduce_bucket_size: auto
-  #   contiguous_gradients: true
-  #   overlap_comm: true
-  #   stage3_prefetch_bucket_size: auto
-  #   stage3_param_persistence_threshold: auto
-  #   stage3_gather_16bit_weights_on_model_save: auto
-  #   zero3_init_flag: true
-  #   gradient_clipping: auto
+  deepspeed: config/model-parallel/deepspeed/zero2.json
 DataTrainingArguments:
   dataset_name: mlabonne/guanaco-llama2-1k
   dataset_split_test_size: 0.1

@@ -1,62 +1,30 @@
 entrypoint: applications/hf-finetune/finetune.py
 SFTConfig:
   output_dir: ./fine-tuned-models
-  num_train_epochs: 1
+  num_train_epochs: 3
   per_device_train_batch_size:
     - 1
     - 2
-  gradient_accumulation_steps: 1
-  # FIXME(aaji): option conflicts with torch DDP arg for manual launcher
-  ddp_find_unused_parameters: false
-  optim: paged_adamw_8bit
-  save_steps: 25
-  logging_steps: 25
-  learning_rate: 2.0e-4
-  weight_decay: 0.001
   fp16:
     - true
     - false
   bf16:
     - true
     - false
-  max_grad_norm: 0.3
-  max_steps: -1
-  warmup_ratio: 0.03
-  group_by_length: true
-  lr_scheduler_type: constant
-  report_to: none
   gradient_checkpointing_kwargs:
-    use_reentrant: false
+    use_reentrant: true
   dataset_text_field: text
-  # keep best model
-  load_best_model_at_end: true
   # dont save checkpoints
   save_strategy: "no"
-  fsdp_config:
-    fsdp_activation_checkpointing: true
-    fsdp_auto_wrap_policy: "TRANSFORMER_BASED_WRAP"
-    fsdp_backward_prefetch: "NO_PREFETCH"
-    fsdp_cpu_ram_efficient_loading: false
-    fsdp_forward_prefetch: true
-    fsdp_offload_params: false
-    fsdp_sharding_strategy: "FULL_SHARD"
-    fsdp_state_dict_type: "FULL_STATE_DICT"
-    fsdp_sync_module_states: true
-    fsdp_use_orig_params: true
+  fsdp:
+    - ""
+    - hybrid_shard
+  deepspeed:
+    - ""
+    - ds_configs/zero2.json
 DataTrainingArguments:
   dataset_name: mlabonne/guanaco-llama2-1k
   dataset_split_test_size: 0.1
-BitsAndBytesConfigDataclass:
-  load_in_4bit:
-    - true
-    - false
-  bnb_4bit_quant_type: nf4
-  bnb_4bit_compute_dtype: bfloat16
-  bnb_4bit_use_double_quant: true
-  load_in_8bit:
-    - true
-    - false
-  quant_method: bitsandbytes
 LoRAArguments:
   lora_alpha: 15
   lora_dropout: 0.1
@@ -68,3 +36,12 @@ ModelArguments:
   pretrained_model_name_or_path: meta-llama/Llama-3.1-8B-Instruct
   #   args:
   #     attn_implementation: "flash_attention_2"
+
+# Comment out for now because ROCm support for BitsAndBytes is not stable
+# BitsAndBytesConfigDataclass:
+#   load_in_4bit: true
+#   bnb_4bit_quant_type: nf4
+#   bnb_4bit_compute_dtype: bfloat16
+#   bnb_4bit_use_double_quant: true
+#   load_in_8bit: false
+#   quant_method: bitsandbytes

@@ -396,6 +396,7 @@ def generate_job(
         ("OMNIHUB_MODELS_DIR", "{models_dir}"),
         ("OMNIHUB_DATA_DIR", "{data_dir}"),
         ("OMNIHUB_RESULTS_DIR", "{results_dir}"),
+        ("OMNIHUB_SRC_DIR", "{omnihub_dir}"),
     ]
     pre_execute.append("# Set OmniHub environment variables")
     for variable, value in omnihub_environment:
