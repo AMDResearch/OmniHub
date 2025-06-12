@@ -1,5 +1,4 @@
 import json
-import os
 from dataclasses import fields
 
 from transformers import HfArgumentParser
@@ -43,16 +42,6 @@ def parse_config(config: dict, custom_args: list):
         dataclass_list.append(globals().get(class_type))
         for name, value in class_config.items():
             config_args.append(f"--{class_type}.{name}")
-            # If the dataclass has a field `SFTConfig.deepspeed` and the value is a string, it is a path to a deepspeed config file.
-            if isinstance(value, str) and name == "deepspeed":
-                # resolve it to absolute path
-                omnihub_dir = os.getenv("OMNIHUB_SRC_DIR")
-                if omnihub_dir:
-                    value = (
-                        os.path.join(omnihub_dir, value)
-                        if not os.path.isabs(value)
-                        else value
-                    )
             if isinstance(value, list):
                 config_args.extend(map(str, value))
             elif isinstance(value, dict):

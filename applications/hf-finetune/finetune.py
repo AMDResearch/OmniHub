@@ -30,14 +30,23 @@ class FineTuner:
         if not os.path.isdir(default_model_path) and os.path.isdir(omnihub_model_path):
             model_path = omnihub_model_path
 
+        # DeepSpeed Zero-3 is not compatible with passing a `device_map`.
+        if (
+            self.SFTConfig.deepspeed_plugin
+            and self.SFTConfig.deepspeed_plugin.zero_stage == 3
+        ):
+            device_map = None
+        else:
+            state = PartialState()
+            device_map = (
+                "auto"
+                if state.distributed_type is DistributedType.NO
+                else {"": state.local_process_index}
+            )
+
         model = AutoModelForCausalLM.from_pretrained(
             model_path,
-            device_map=(
-                "auto"
-                if PartialState().distributed_type is DistributedType.NO
-                else {"": PartialState().local_process_index}
-            ),
-            # attn_implementation="flash_attention_2"
+            device_map=device_map,
             **self.ModelArguments.args,
         )
 

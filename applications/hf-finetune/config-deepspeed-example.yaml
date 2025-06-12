@@ -9,7 +9,11 @@ SFTConfig:
   dataset_text_field: text
   # dont save checkpoints
   save_strategy: "no"
-  deepspeed: config/model-parallel/deepspeed/zero2.json
+  deepspeed:
+    train_batch_size: "auto"
+    train_micro_batch_size_per_gpu: "auto"
+    zero_optimization:
+      stage: 2
 DataTrainingArguments:
   dataset_name: mlabonne/guanaco-llama2-1k
   dataset_split_test_size: 0.1
