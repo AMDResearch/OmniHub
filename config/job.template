@@ -54,6 +54,12 @@ export TORCH_NCCL_HIGH_PRIORITY=1
 ## thread will abort the process.
 # export TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC=600
 
+# Control how we perform Async Error Handling with NCCL when an exception is observed in watchdog. If set to 0, no
+# handling of asynchronous NCCL errors. If set to 1, aborting NCCL communicator and tearing down process upon error. If
+# set to 2, only abort NCCL communicator and if set to 3, tearing down process without aborting NCCL communicator. By
+# default, it is set to 3.
+export TORCH_NCCL_ASYNC_ERROR_HANDLING=2
+
 if [[ ! -d $omnihub_dir ]]; then
     echo "Error: failed to find Omnihub directory $omnihub_dir"
     exit 1

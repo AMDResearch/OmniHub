@@ -1,4 +1,5 @@
 import contextlib
+import sys
 from contextlib import ExitStack
 
 from omnihub.tools.trace import TraceManager
@@ -19,4 +20,11 @@ def profile():
             stack.enter_context(tracers.get_pytorch_profiler_cm())
         # if use_other_tool:
         #    stack.enter_context(get_other_tool_cm())
-        yield
+        try:
+            yield
+        except Exception as e:
+            print(
+                f"Exception caught during OmniHub run: {e}", file=sys.stderr, flush=True
+            )
+            stack.close()
+            raise e

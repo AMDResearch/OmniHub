@@ -9,6 +9,7 @@ SFTConfig:
   dataset_text_field: text
   # dont save checkpoints
   save_strategy: "no"
+  ddp_find_unused_parameters: false
 DataTrainingArguments:
   dataset_name: mlabonne/guanaco-llama2-1k
   dataset_split_test_size: 0.1

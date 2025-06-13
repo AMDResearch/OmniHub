@@ -9,6 +9,7 @@ SFTConfig:
   dataset_text_field: text
   # dont save checkpoints
   save_strategy: "no"
+  ddp_find_unused_parameters: false
   fsdp: hybrid_shard
 DataTrainingArguments:
   dataset_name: mlabonne/guanaco-llama2-1k
