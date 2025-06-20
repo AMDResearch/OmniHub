@@ -31,14 +31,21 @@ SFTConfig:
       zero_optimization:
         stage: 3
         contiguous_gradients: true
-        overlap_comm: true
+        overlap_comm:
+          - true
+          - false
         reduce_bucket_size: "auto"
         stage3_prefetch_bucket_size: "auto"
         stage3_param_persistence_threshold: "auto"
-        stage3_gather_16bit_weights_on_model_save: "auto"
-        offload_param_device: "cpu"
         # zero3_init_flag: true # Commented out because extra inputs are not permitted in the current configuration. Re-enable if future updates allow this key.
         # low_cpu_mem_usage: false # Commented out because extra inputs are not permitted in the current configuration. Re-enable if future updates allow this key.
+        stage3_gather_16bit_weights_on_model_save: "auto"
+        offload_param:
+          - device: "none"
+          - device: "cpu"
+            pin_memory:
+              - true
+              - false
 DataTrainingArguments:
   dataset_name: mlabonne/guanaco-llama2-1k
   dataset_split_test_size: 0.1

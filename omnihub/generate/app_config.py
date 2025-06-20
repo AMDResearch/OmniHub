@@ -29,32 +29,42 @@ inv_match_conflicts = {
 }
 
 
-# Turns nested dictionary to pairs of key-values, where keys are tuples that
-# represent a path in the original dictionary.
-def to_pairs(d, parent=None):
-    items = []
-    for k, v in d.items():
-        path = parent + [k] if parent else [k]
-        if isinstance(v, dict):
-            items.extend(to_pairs(v, path).items())
+# Recursively expand a nested dictionary with list values into a list of simple dictionaries representing each unique
+# path, while minimizing extra data copies by using in-place mutation and copying only at leaf nodes.
+def to_combinations(d):
+    # If d is not a dictionary, return a list containing d (or each element if d is a list)
+    if not isinstance(d, dict):
+        return d if isinstance(d, list) else [d]
+
+    def helper(cur, items):
+        if not items:
+            # Only copy at the leaf to complete one full combination.
+            yield cur.copy()
+            return
+        key, value = items[0]
+        rest = items[1:]
+        if isinstance(value, list):
+            for item in value:
+                # Expand dict items in the list recursively.
+                if isinstance(item, dict):
+                    for sub in to_combinations(item):
+                        cur[key] = sub
+                        yield from helper(cur, rest)
+                else:
+                    cur[key] = item
+                    yield from helper(cur, rest)
+            cur.pop(key, None)
+        elif isinstance(value, dict):
+            for sub in to_combinations(value):
+                cur[key] = sub
+                yield from helper(cur, rest)
+            cur.pop(key, None)
         else:
-            items.append((tuple(path), v))
-    return dict(items)
+            cur[key] = value
+            yield from helper(cur, rest)
+            cur.pop(key, None)
 
-
-# Turns dictionary of key-values pairs in which keys are tuples to a nested
-# dictionary.
-def to_nested(d):
-    nested = {}
-    for path, v in d.items():
-        current_dict = nested
-        *nodes, leaf = path
-        for k in nodes:
-            if k not in current_dict:
-                current_dict[k] = {}
-            current_dict = current_dict[k]
-        current_dict[leaf] = v
-    return nested
+    return list(helper({}, list(d.items())))
 
 
 def has_conflict(conf, conflict_dict, check_fn):
@@ -78,7 +88,7 @@ def has_conflict(conf, conflict_dict, check_fn):
 # Given a template configuration file in YAML, generate sets of experiment
 # configuration files. Lists in the template are evaluated as different
 # configuration values, and this function generates all possible combinations
-# of such values. It only supports two levels of nested dictionaries.  For
+# of such values. It supports any levels of nested dictionaries.  For
 # example, the following template:
 #
 #   template.yaml
@@ -113,23 +123,11 @@ def generate_app_config(output_dir, template_file):
     with open(template_file, "r") as f:
         template = yaml.safe_load(f)
 
-    pairs = to_pairs(template)
-
-    # Ensure all values are lists, including keys that are not templated and only
-    # have one possible value.
-    for k, v in pairs.items():
-        if not isinstance(v, list):
-            pairs[k] = [v]
-
-    keys = pairs.keys()
-    values = pairs.values()
-    combinations = [dict(zip(keys, i)) for i in itertools.product(*values)]
+    combinations = to_combinations(template)
 
     num_conflicts = 0
 
-    for i, combination in enumerate(combinations):
-        conf = to_nested(combination)
-
+    for i, conf in enumerate(combinations):
         # Check normal match - if a section has all values equal, that's a violation.
         if has_conflict(
             conf, match_conflicts, lambda actual, expected: actual == expected
