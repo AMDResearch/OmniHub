@@ -541,10 +541,10 @@ class OmnihubMonitorParser(ProcessParser):
             "Start Timestamp": start,
             "End Timestamp": end,
             "Duration (s)": (end - start),
-            "Rank mean duration (s)": statistics.mean(durations),
-            "Rank min duration (s)": min(durations),
-            "Rank max duration (s)": max(durations),
-            "GPU energy (kWh)": energy,
+            "Rank Mean Duration (s)": statistics.mean(durations),
+            "Rank Min Duration (s)": min(durations),
+            "Rank Max Duration (s)": max(durations),
+            "GPU Energy (kWh)": energy,
         }
 
         with open(f"{self.processed_dir}/omnihub-monitor.yaml", "w") as f:
@@ -883,7 +883,8 @@ class ReportCardParser(ProcessParser):
                 "RCCL Collectives Bandwidth (MiB/s)",
                 None,
             ),
-            "GPU energy (kWh)": ("omnihub-monitor", "GPU energy (kWh)", None),
+            "GPU Energy (kWh)": ("omnihub-monitor", "GPU Energy (kWh)", None),
+            "GPU Energy omnistat (kWh)": ("omnistat-range", "GPU Energy (kWh)", None),
             "Duration (s)": ("omnihub-monitor", "Duration (s)", None),
         }
 
@@ -918,6 +919,12 @@ class ReportCardParser(ProcessParser):
                         loaded_files[section] = {}
                 section_data = loaded_files.get(section, {})
                 data[field] = section_data.get(key, default)
+
+        # If the energy from omnihub-monitor is not available, use the one from omnistat-range
+        if data["GPU Energy (kWh)"] == 0:
+            data["GPU Energy (kWh)"] = data["GPU Energy omnistat (kWh)"]
+        # Remove the temporary field used for fallback
+        data.pop("GPU Energy omnistat (kWh)", None)
 
         # Save the parsed report card to a YAML file
         output_file = f"{self.processed_dir}/report-card.yaml"

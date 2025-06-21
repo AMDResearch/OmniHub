@@ -39,10 +39,19 @@ class TraceManager:
             sys.exit(1)
 
         def get_energy(device_num: int):
-            handles = amdsmi.amdsmi_get_processor_handles()
-            energy_dict = amdsmi.amdsmi_get_energy_count(handles[device_num])
-            energy = energy_dict["power"] * round(energy_dict["counter_resolution"], 1)
-            energy /= 1000000000
+            try:
+                handles = amdsmi.amdsmi_get_processor_handles()
+                energy_dict = amdsmi.amdsmi_get_energy_count(handles[device_num])
+                energy = energy_dict["energy_accumulator"] * round(
+                    energy_dict["counter_resolution"], 1
+                )
+                energy /= 1000000000
+            except Exception as e:
+                print(
+                    f"OmniHub Monitor failed to retrieve energy data: {e}",
+                    file=sys.stderr,
+                )
+                energy = 0
             return energy
 
         output_dir = os.getenv("OMNIHUB_MONITOR_OUTPUT_PATH", ".")
