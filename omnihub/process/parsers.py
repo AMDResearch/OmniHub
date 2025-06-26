@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -600,8 +601,9 @@ class OmnistatParser(ProcessParser):
             "rocm_vram_used_percentage": "GPU Memory Utilization (%)",
             "rocm_average_socket_power_watts": "GPU Power (W)",
         }
-
         df = self.parse_csv("omnistat-rocm.csv", metrics.keys(), levels=3)
+        if df is None or df.empty:
+            return result
 
         for metric, name in metrics.items():
             df_metric = df[metric]
@@ -624,6 +626,8 @@ class OmnistatParser(ProcessParser):
         }
 
         df = self.parse_csv("omnistat-network.csv", metrics.keys(), levels=4)
+        if df is None or df.empty:
+            return result
 
         start_time = df.index[0]
         end_time = df.index[-1]
@@ -656,6 +660,8 @@ class OmnistatParser(ProcessParser):
 
         metrics = ["omnistat_rocprofiler"]
         df = self.parse_csv("omnistat-rocprofiler.csv", metrics, levels=4)
+        if df is None or df.empty:
+            return result
 
         start_time = df.index[0]
         end_time = df.index[-1]
@@ -930,3 +936,58 @@ class ReportCardParser(ProcessParser):
         output_file = f"{self.processed_dir}/report-card.yaml"
         with open(output_file, "w") as f:
             yaml.dump(data, f)
+
+
+# Create a hash of the execution directory to uniquely identify groups of related executions.
+class HashParser(ProcessParser):
+    def parse(self):
+        # read the dictionaries from app.yaml and job.yaml, create a hash
+        app_file = f"{self.execution_dir}/app.yaml"
+        job_file = f"{self.execution_dir}/job.yaml"
+        if not os.path.exists(app_file) or not os.path.exists(job_file):
+            self.log.warning(
+                f"Unable to find app.yaml or job.yaml in {self.execution_dir}. Skipping hash generation."
+            )
+            return
+        with open(app_file, "r") as f:
+            app_data = yaml.safe_load(f)
+        with open(job_file, "r") as f:
+            job_data = yaml.safe_load(f)
+        if not app_data or not job_data:
+            self.log.warning("App or job data is empty. Skipping hash generation.")
+            return
+        # Skip specific keys in job data. Note: we are skipping "cluster" and "container-platform" assuming that
+        # different clusters or containers are treated as different executions, and so we don't want to include them in
+        # the hash.
+        keys_to_skip = [
+            "app-config",
+            "head-address",
+            "head-node",
+            "head-port",
+            "id",
+            "models-directory",
+            "nodes",
+            "omnihub-directory",
+            "time-limit-seconds",
+            "timestamp",
+            "tools",
+            "user",
+        ]
+        for key in keys_to_skip:
+            job_data.pop(key, None)
+        # Create a combined dictionary of the app and job data
+        combined_data = {
+            "app": app_data,
+            "job": job_data,
+        }
+        # Create a hash of the combined data
+        combined_str = yaml.dump(combined_data, sort_keys=True)
+        execution_hash = hashlib.sha256(combined_str.encode()).hexdigest()
+
+        execution_hash_record = {
+            "execution_hash": execution_hash,
+        }
+        # Save the hash to a YAML file in the processed directory as a dictionary
+        hash_file = f"{self.processed_dir}/execution_hash.yaml"
+        with open(hash_file, "w") as f:
+            yaml.dump(execution_hash_record, f)

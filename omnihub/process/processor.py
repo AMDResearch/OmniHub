@@ -66,6 +66,9 @@ def process_execution(execution_dir, strict_exit_code=False):
     # Create a job performance report based on what other tools generate
     parser_registry.append(parsers.ReportCardParser(execution_dir))
 
+    # Create a hash of the execution directory to uniquely identify groups of related executions.
+    parser_registry.append(parsers.HashParser(execution_dir))
+
     for parser in parser_registry:
         parser.load()
         parser.parse()
