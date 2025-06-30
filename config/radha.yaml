@@ -8,6 +8,10 @@ cluster:
     - apptainer
     - docker
   subsets:
+    - partition: lowprio
+      gpu: mi210
+      num-gpus: 4
+      num-nodes: 7
     - partition: radhadefault
       gpu: mi210
       num-gpus: 4
