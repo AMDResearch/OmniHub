@@ -953,6 +953,7 @@ class HashParser(ProcessParser):
             app_data = yaml.safe_load(f)
         with open(job_file, "r") as f:
             job_data = yaml.safe_load(f)
+        job_data = job_data.get("job", {})
         if not app_data or not job_data:
             self.log.warning("App or job data is empty. Skipping hash generation.")
             return
