@@ -11,6 +11,20 @@ from omnihub.generate.app_config import generate_app_config
 from omnihub.generate.job import default_rocm_version, generate_job, load_tool_config
 
 
+def count_active_jobs():
+    # Count active (pending and running) jobs (states PD and R) for the current user.
+    result = subprocess.run(
+        ["squeue", "--me", "-h", "-t", "PD,R"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print("Error counting active (pending and running) jobs")
+        sys.exit(1)
+    lines = result.stdout.strip().splitlines()
+    return len(lines)
+
+
 def generate_sweep(
     config_dir,
     omnihub_dir,
@@ -26,6 +40,7 @@ def generate_sweep(
     time_limit="1h",
     delay=60,
     dry_run=False,
+    max_active=10,
 ):
     tools_dir = f"{config_dir}/tools"
     tool_config = load_tool_config(tools_dir)
@@ -50,7 +65,7 @@ def generate_sweep(
     if len(tools) == 0:
         tools.append([])
 
-    # Create sweep directory and subdirectories
+    # Create sweep directory and subdirectories.
     try:
         sweep_path = pathlib.Path(sweep_dir)
         configurations_path = sweep_path / "configurations"
@@ -59,7 +74,7 @@ def generate_sweep(
         configurations_path.mkdir(exist_ok=True)
         jobs_path.mkdir(exist_ok=True)
     except Exception as e:
-        print(f"Unexpected error while creating diretories: {e}")
+        print(f"Unexpected error while creating directories: {e}")
         sys.exit(1)
 
     # Maintain a list of dicts for serialization, and an equivalent set of
@@ -129,12 +144,21 @@ def generate_sweep(
                     if dry_run:
                         continue
 
+                    # Dynamic rate limiter: wait until active jobs are below max_active.
+                    while count_active_jobs() >= max_active:
+                        active = count_active_jobs()
+                        print(
+                            f"Active jobs ({active}) have reached or exceeded the limit "
+                            f"({max_active}). Waiting {delay} seconds..."
+                        )
+                        time.sleep(delay)
+
                     result = subprocess.run(
                         ["sbatch", "--parsable", str(job_filepath)],
                         capture_output=True,
                         text=True,
                     )
-                    if not result.returncode == 0:
+                    if result.returncode != 0:
                         print("Error submitting job")
                         sys.exit(1)
 
@@ -258,6 +282,12 @@ def main():
         help="Generate sweep without submitting the jobs",
         action="store_true",
         default=False,
+    )
+    optional_group.add_argument(
+        "--max-active",
+        help="Maximum number of active SLURM jobs before waiting",
+        type=int,
+        default=10,
     )
 
     args = parser.parse_args()
