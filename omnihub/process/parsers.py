@@ -57,19 +57,34 @@ class AppConfigParser(ProcessParser):
 
 class AppLogParser(ProcessParser):
     def parse(self):
-        with open(f"{self.execution_dir}/job.yaml", "r") as f:
+        app_config_file = pathlib.Path(f"{self.execution_dir}/app.yaml")
+        if not app_config_file.exists():
+            self.log.warning("Missing app configuration")
+            return
+
+        with open(app_config_file, "r") as f:
             data = yaml.safe_load(f)
 
-        job = data["job"]
-        if not "app-config" in job:
-            self.log.warning("Missing app-config field in job configuration")
+        if not "entrypoint" in data:
+            self.log.warning("Missing entrypoint field in job configuration")
+            return
+
+        # Mapping of entrypoints to application names. Entrypoints are the
+        # only reliable way to know what application has been executed, which
+        # is relevant to run the appropriate parser.
+        app_names = {
+            "applications/hf-finetune/finetune.py": "hf-finetune",
+            "/app/vllm/benchmarks/benchmark_latency.py": "vllm-latency",
+            "/app/vllm/benchmarks/benchmark_throughput.py": "vllm-throughput",
+        }
+
+        if not data["entrypoint"] in app_names:
             return
 
         # Assume application log parser is available if the `parse.py`
-        # executable is present in the same directory as the application
-        # configuration file.
-        app_dir = pathlib.Path(job["app-config"]).parent
-        parser = f"{app_dir}/parse.py"
+        # executable is present in the application directory.
+        name = app_names[data["entrypoint"]]
+        parser = f"applications/{name}/parse.py"
         if os.access(parser, os.X_OK):
             self.log.debug(f"Found application parser: {parser}")
             subprocess.run([parser, self.execution_dir])
