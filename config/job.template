@@ -6,6 +6,8 @@
 #SBATCH --tasks-per-node=$num_tasks_per_node
 #SBATCH -t $time_limit
 #SBATCH -p $partition
+#SBATCH --signal=B:SIGUSR1@60 # Send SIGUSR1 1 minute before timeout
+
 $sbatch_extra_options
 
 $variables
@@ -122,6 +124,30 @@ apptainer run $shared_dir/apptainer/omnihub.$gpu_arch.$rocm_version.sif /bin/bas
 # Store a copy of the application configuration.
 cp $omnihub_dir/$app_config $results_dir/app.yaml
 
+# The statusExit function writes the job status to a YAML file and exits with the provided code.
+function statusExit() {
+    local final_exit_code=$1
+    cat <<EOF > $results_dir/job-status.yaml
+pre_start_ms: ${pre_start_ms:-null}
+pre_end_ms: ${pre_end_ms:-null}
+execute_start_ms: ${execute_start_ms:-null}
+execute_end_ms: ${execute_end_ms:-null}
+exit_code: ${final_exit_code:-null}
+post_start_ms: ${post_start_ms:-null}
+post_end_ms: ${post_end_ms:-null}
+EOF
+    exit $final_exit_code
+}
+
+# The timeoutHandler function serves as a signal handler to gracefully terminate the job on timeout.
+function timeoutHandler() {
+    echo "Job is about to timeout and terminate via SIGTERM. Wrapping up gracefully..."
+    statusExit 143 # exit code for SIGTERM
+}
+
+# Register the signal handler for SIGUSR1
+trap timeoutHandler SIGUSR1
+
 pre_start_ms=$(date +%s%3N)
 $pre_execute_commands
 pre_end_ms=$(date +%s%3N)
@@ -135,12 +161,4 @@ post_start_ms=$(date +%s%3N)
 $post_execute_commands
 post_end_ms=$(date +%s%3N)
 
-cat <<EOF > $results_dir/job-status.yaml
-pre_start_ms: $pre_start_ms
-pre_end_ms: $pre_end_ms
-execute_start_ms: $execute_start_ms
-execute_end_ms: $execute_end_ms
-exit_code: $exit_code
-post_start_ms: $post_start_ms
-post_end_ms: $post_end_ms
-EOF
+statusExit $exit_code

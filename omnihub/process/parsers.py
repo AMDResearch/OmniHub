@@ -917,6 +917,12 @@ class ReportCardParser(ProcessParser):
             "rccl-info-collectives": f"{self.processed_dir}/rccl-info-collectives.yaml",
         }
 
+        # Ensure all required files exist; if any file is missing, return early.
+        for _, file_path in file_mapping.items():
+            if not os.path.exists(file_path):
+                self.log.warning(f"Missing required file: {file_path}")
+                return
+
         # Initialize data with default values per the mapping
         data = {field: default for field, (_, _, default) in field_mapping.items()}
 

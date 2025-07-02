@@ -16,7 +16,13 @@ logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
 def process_execution(execution_dir, strict_exit_code=False):
     # Only check the exit_code if strict_exit_code is True
     if strict_exit_code:
-        with open(f"{execution_dir}/job-status.yaml", "r") as f:
+        status_file = f"{execution_dir}/job-status.yaml"
+        if not os.path.isfile(status_file):
+            logging.warning(
+                f"Skipped processing job in {execution_dir} because {status_file} does not exist."
+            )
+            return
+        with open(status_file, "r") as f:
             data = yaml.safe_load(f)
         if data.get("exit_code") != 0:
             logging.warning(

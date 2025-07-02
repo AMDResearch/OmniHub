@@ -145,7 +145,7 @@ def generate_job(
         ' /bin/bash -c "export ROCM_PATH=/opt/rocm; export ROCM_LIB=/opt/rocm/lib;'
         " export LD_LIBRARY_PATH=/opt/rocm/lib:\\$LD_LIBRARY_PATH;"
         " export PATH=\\$CONDA_DIR/bin:\\$PATH;"
-        ' {base_command}"'
+        ' {base_command}" &'
     )
 
     docker_wrap = (
@@ -161,7 +161,7 @@ def generate_job(
         " --device=/dev/kfd --device=/dev/dri"
         " --network=host --ipc=host --shm-size 8G"
         " docker-virtual.atlartifactory.amd.com/amd/omnihub/radha:{gpu_arch}.{rocm_version}"
-        ' bash -c \\"{base_command}; fix-host-owner $docker_results_dir\\""'
+        ' bash -c \\"set -o pipefail; {base_command} | fix-host-owner $docker_results_dir\\"" &'
     )
 
     # Temporarily using these per-cluster commands for testing. These are
@@ -426,6 +426,9 @@ def generate_job(
         )
 
     execute.append(command)
+    execute.append("# Wait for the command to finish")
+    execute.append("PID=$!")
+    execute.append("wait $PID")
 
     # STEP 4. Generate job file.
 
