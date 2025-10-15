@@ -727,65 +727,6 @@ class OmnistatRangeParser(OmnistatParser):
         self.end_time = data["End Timestamp"]
 
 
-# Current implementation to load Omnistat data relies on the text report,
-# which isn't the most machine-readable format, and so it is more complex than
-# it should be. This is only a temporary solution and we should work on making
-# all the basic Omnistat data relevant for Omnihub easily parseable.
-class OmnistatReportParser(ProcessParser):
-    def __init__(self, execution_dir, name="omnistat"):
-        super().__init__(execution_dir)
-        self.variant_name = name
-
-    def parse(self):
-        report_file = f"{self.execution_dir}/tools/{self.variant_name}/report.txt"
-        with open(report_file, "r") as f:
-            report = f.readlines()
-
-        gpu_pattern = re.compile(r"[\s]+[0-9]+[\s]+\|")
-        gpu_table = [line for line in report if re.match(gpu_pattern, line)]
-        gpu_data = []
-        for row in gpu_table:
-            row = row.strip().split("|")
-            utilization = row[1].split()
-            memory = row[2].split()
-            gpu = {
-                "util-max": float(utilization[0]),
-                "util-mean": float(utilization[1]),
-                "mem-max": float(memory[0]),
-                "mem-mean": float(memory[1]),
-            }
-            gpu_data.append(gpu)
-
-        if len(gpu_data) == 0:
-            self.log.warning("Unable to parse GPU data from Omnistat report")
-            return
-
-        records = {
-            "GPU Utilization (%) Max": max([i["util-max"] for i in gpu_data]),
-            "GPU Utilization (%) Mean": statistics.mean(
-                [i["util-mean"] for i in gpu_data]
-            ),
-            "GPU Memory Utilization (%) Max": max([i["mem-max"] for i in gpu_data]),
-            "GPU Memory Utilization (%) Mean": statistics.mean(
-                [i["mem-mean"] for i in gpu_data]
-            ),
-        }
-
-        energy_pattern = re.compile(
-            r"Approximate Total GPU Energy Consumed = ([0-9]*\.[0-9]+|[0-9]+) kWh"
-        )
-        for line in report:
-            match = re.match(energy_pattern, line)
-            if match:
-                records["GPU Energy (kWh)"] = float(match.group(1))
-
-        # Assume executions only have a single Omnistat variant, and so there
-        # is a single report to process, and it's always stored in the same
-        # omnistat.yaml file.
-        with open(f"{self.processed_dir}/omnistat-report.yaml", "w") as f:
-            yaml.dump(records, f)
-
-
 class JobStatusParser(ProcessParser):
     def parse(self):
         with open(f"{self.execution_dir}/job-status.yaml", "r") as f:

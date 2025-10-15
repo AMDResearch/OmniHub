@@ -56,7 +56,6 @@ def process_execution(execution_dir, strict_exit_code=False):
     for omnistat_variant in pathlib.Path(f"{execution_dir}/tools").glob("omnistat*"):
         if omnistat_variant.is_dir():
             name = omnistat_variant.name
-            parser_registry.append(parsers.OmnistatReportParser(execution_dir, name))
             parser_registry.append(parsers.OmnistatParser(execution_dir, name))
             parser_registry.append(parsers.OmnistatRangeParser(execution_dir, name))
 
