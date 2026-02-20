@@ -25,7 +25,7 @@ gpu_mapping = {
 }
 
 # Sets of supported ROCm versions.
-rocm_versions = {"6.3.1"}
+rocm_versions = {"6.3.1", "7.1.0"}
 default_rocm_version = "6.3.1"
 
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600}
@@ -141,11 +141,13 @@ def generate_job(
     )
 
     apptainer_wrap = (
-        "srun apptainer run $shared_dir/apptainer/omnihub.{gpu_arch}.{rocm_version}.sif"
-        ' /bin/bash -c "export ROCM_PATH=/opt/rocm; export ROCM_LIB=/opt/rocm/lib;'
-        " export LD_LIBRARY_PATH=/opt/rocm/lib:\\$LD_LIBRARY_PATH;"
-        " export PATH=\\$CONDA_DIR/bin:\\$PATH;"
-        ' {base_command}" &'
+        'srun bash -c "mkdir -p $results_dir/.overlay.\\$SLURM_PROCID/{{upper,work}} &&'
+        " apptainer run --overlay $results_dir/.overlay.\\$SLURM_PROCID"
+        " $shared_dir/apptainer/omnihub.{gpu_arch}.{rocm_version}.sif"
+        ' /bin/bash -c \\"export ROCM_PATH=/opt/rocm; export ROCM_LIB=/opt/rocm/lib;'
+        " export LD_LIBRARY_PATH=/opt/rocm/lib:\\\\\\$LD_LIBRARY_PATH;"
+        " export PATH=\\\\\\$CONDA_DIR/bin:\\\\\\$PATH;"
+        ' {base_command}\\"" &'
     )
 
     docker_wrap = (

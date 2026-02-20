@@ -41,6 +41,8 @@ def generate_sweep(
     delay=60,
     dry_run=False,
     max_active=10,
+    include_nodelist=None,
+    exclude_nodelist=None,
 ):
     tools_dir = f"{config_dir}/tools"
     tool_config = load_tool_config(tools_dir)
@@ -55,6 +57,12 @@ def generate_sweep(
 
     if tools is None:
         tools = []
+
+    if include_nodelist is None:
+        include_nodelist = []
+
+    if exclude_nodelist is None:
+        exclude_nodelist = []
 
     if len(partitions) == 0:
         default_partition = cluster_info["subsets"][0]["partition"]
@@ -139,6 +147,8 @@ def generate_sweep(
                         tools=list(t),
                         time_limit=time_limit,
                         output=str(job_filepath),
+                        include_nodelist=include_nodelist,
+                        exclude_nodelist=exclude_nodelist,
                     )
 
                     if dry_run:
@@ -288,6 +298,27 @@ def main():
         help="Maximum number of active SLURM jobs before waiting",
         type=int,
         default=10,
+    )
+    optional_group.add_argument(
+        "--rocm-version",
+        help=f"ROCm version to use (default: {default_rocm_version})",
+        type=str,
+        required=False,
+        default=default_rocm_version,
+    )
+    optional_group.add_argument(
+        "--include-nodelist",
+        help="List of nodes to include in the job.",
+        type=str,
+        nargs="+",
+        default=None,
+    )
+    optional_group.add_argument(
+        "--exclude-nodelist",
+        help="List of nodes to exclude from the job.",
+        type=str,
+        nargs="+",
+        default=None,
     )
 
     args = parser.parse_args()

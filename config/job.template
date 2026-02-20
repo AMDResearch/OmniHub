@@ -148,6 +148,10 @@ function timeoutHandler() {
 # Register the signal handler for SIGUSR1
 trap timeoutHandler SIGUSR1
 
+# Set TRITON_HOME to a job-specific directory under results_dir
+# This isolates Triton cache to this job and avoids interfering with other concurrent jobs
+export TRITON_HOME="$results_dir/.triton"
+
 pre_start_ms=$(date +%s%3N)
 $pre_execute_commands
 pre_end_ms=$(date +%s%3N)
@@ -160,5 +164,14 @@ execute_end_ms=$(date +%s%3N)
 post_start_ms=$(date +%s%3N)
 $post_execute_commands
 post_end_ms=$(date +%s%3N)
+
+# Delete triton cache to free up disk space, since it's not needed after execution and can be quite large
+if [[ -d $TRITON_HOME ]]; then
+    rm -rf $TRITON_HOME
+fi
+
+# Delete per-rank overlay directories to free up disk space
+# The overlays were only needed during container execution
+find "$results_dir" -maxdepth 1 -name '.overlay.*' -type d -exec rm -rf {} +
 
 statusExit $exit_code
