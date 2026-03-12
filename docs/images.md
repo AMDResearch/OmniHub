@@ -15,13 +15,22 @@ may have already done a `docker pull` on these images on each Radha node.
 ## Apptainer
 
 Pre-built Apptainer images are stored on the following clusters at the corresponding shared locations.
+Images are split by workload type: `inference` for inference workloads and `training` for training/fine-tuning workloads.
 
-- `radha:/home/shared/projs/omnihub/apptainer/omnihub.gfx90a.631.sif`
-- `radha:/home/shared/projs/omnihub/apptainer/omnihub.gfx942.631.sif`
-- `hpcfund:/work1/amd/omnihub/apptainer/omnihub.gfx90a.631.sif`
-- `hpcfund:/work1/amd/omnihub/apptainer/omnihub.gfx942.631.sif`
+- `radha:/home/shared/projs/omnihub/apptainer/omnihub.inference.gfx90a.631.sif`
+- `radha:/home/shared/projs/omnihub/apptainer/omnihub.inference.gfx942.631.sif`
+- `radha:/home/shared/projs/omnihub/apptainer/omnihub.training.gfx90a.631.sif`
+- `radha:/home/shared/projs/omnihub/apptainer/omnihub.training.gfx942.631.sif`
+- `hpcfund:/work1/amd/omnihub/apptainer/omnihub.inference.gfx90a.631.sif`
+- `hpcfund:/work1/amd/omnihub/apptainer/omnihub.inference.gfx942.631.sif`
+- `hpcfund:/work1/amd/omnihub/apptainer/omnihub.training.gfx90a.631.sif`
+- `hpcfund:/work1/amd/omnihub/apptainer/omnihub.training.gfx942.631.sif`
 
 ### How we built the images
 
-Apptainer Images were built based on the docker images by using the command:
-`apptainer build /path/to/omnihub.<arch>.<rocmver>.sif docker-virtual.atlartifactory.amd.com/amd/omnihub/radha:<arch>.<rocmver>`
+Apptainer Images were built based on the docker images. The same base Docker image is used to produce both the `inference` and `training` Apptainer images, one build per workload type:
+
+```
+apptainer build /path/to/omnihub.inference.<arch>.<rocmver>.sif docker-virtual.atlartifactory.amd.com/amd/omnihub/radha:<arch>.<rocmver>
+apptainer build /path/to/omnihub.training.<arch>.<rocmver>.sif docker-virtual.atlartifactory.amd.com/amd/omnihub/radha:<arch>.<rocmver>
+```

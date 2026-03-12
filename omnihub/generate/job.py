@@ -26,9 +26,24 @@ gpu_mapping = {
 
 # Sets of supported ROCm versions.
 rocm_versions = {"6.3.1", "7.1.0"}
-default_rocm_version = "6.3.1"
+default_rocm_version = "7.1.0"
 
 seconds_per_unit = {"s": 1, "m": 60, "h": 3600}
+
+
+def apptainer_image_type_from_app_config(app_config) -> str:
+    """
+    Infer whether an application config implies training or inference.
+    """
+    path = str(app_config).lower()
+    training_markers = (
+        "primus",
+        "finetune",
+        "pretrain",
+        "pytorch-train",
+        "training",
+    )
+    return "training" if any(m in path for m in training_markers) else "inference"
 
 
 def load_tool_config(tools_dir):
@@ -142,8 +157,8 @@ def generate_job(
 
     apptainer_wrap = (
         'srun bash -c "mkdir -p $results_dir/.overlay.\\$SLURM_PROCID/{{upper,work}} &&'
-        " apptainer run --overlay $results_dir/.overlay.\\$SLURM_PROCID"
-        " $shared_dir/apptainer/omnihub.{gpu_arch}.{rocm_version}.sif"
+        " apptainer exec --overlay $results_dir/.overlay.\\$SLURM_PROCID"
+        " $apptainer_image"
         ' /bin/bash -c \\"export ROCM_PATH=/opt/rocm; export ROCM_LIB=/opt/rocm/lib;'
         " export LD_LIBRARY_PATH=/opt/rocm/lib:\\\\\\$LD_LIBRARY_PATH;"
         " export PATH=\\\\\\$CONDA_DIR/bin:\\\\\\$PATH;"
@@ -301,6 +316,13 @@ def generate_job(
         print(f"Unsupported GPU type: {gpu_type}")
         sys.exit(1)
 
+    # Select apptainer image based on application type.
+    apptainer_image_type = apptainer_image_type_from_app_config(app_config)
+    apptainer_image = (
+        f"{shared_dir}/apptainer/omnihub.{apptainer_image_type}."
+        f"{gpu_arch}.{rocm_version}.sif"
+    )
+
     # STEP 3. Build commands to execute and configure profilers.
 
     for tool in tools:
@@ -345,6 +367,7 @@ def generate_job(
         ("data_dir", f"{data_dir}"),
         ("shared_dir", f"{shared_dir}"),
         ("results_dir", f"{results_dir}"),
+        ("apptainer_image", f"{apptainer_image}"),
         ("app_config", f"{app_config}"),
         ("cluster", f"{cluster}"),
         ("partition", f"{partition_name}"),
@@ -415,9 +438,7 @@ def generate_job(
 
     command = base_command
     if platform == "apptainer":
-        command = apptainer_wrap.format(
-            base_command=base_command, gpu_arch=gpu_arch, rocm_version=rocm_version
-        )
+        command = apptainer_wrap.format(base_command=base_command)
     elif platform == "docker":
         docker_args = " ".join([f"-e {x[0]}={x[1]}" for x in docker_environment])
         command = docker_wrap.format(
@@ -538,10 +559,10 @@ def main():
     )
     optional_group.add_argument(
         "--rocm-version",
-        help="ROCm version to use (default: 6.3.1)",
+        help="ROCm version to use (default: 7.1.0)",
         type=str,
         required=False,
-        default="6.3.1",
+        default="7.1.0",
     )
     optional_group.add_argument(
         "--platform",

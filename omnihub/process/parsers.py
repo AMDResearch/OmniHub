@@ -74,8 +74,8 @@ class AppLogParser(ProcessParser):
         # is relevant to run the appropriate parser.
         app_names = {
             "applications/hf-finetune/finetune.py": "hf-finetune",
-            "/app/vllm/benchmarks/benchmark_latency.py": "vllm-latency",
-            "/app/vllm/benchmarks/benchmark_throughput.py": "vllm-throughput",
+            "applications/vllm-latency/bench_latency_wrapper.py": "vllm-latency",
+            "applications/vllm-throughput/bench_throughput_wrapper.py": "vllm-throughput",
         }
 
         if not data["entrypoint"] in app_names:

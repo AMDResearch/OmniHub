@@ -1,0 +1,43 @@
+entrypoint: applications/vllm-throughput/bench_throughput_wrapper.py
+model:
+  - meta-llama/Llama-3.1-8B-Instruct
+  - meta-llama/Llama-3.2-1B-Instruct
+  - meta-llama/Llama-3.2-3B-Instruct
+tensor_parallel_size:
+  - 1
+  - 2
+  - 4
+  - 8
+input_len:
+  - 128
+  - 2048
+output_len:
+  - 128
+  - 2048
+max_num_seqs:
+  - 2000
+  - 4000
+max_seq_len_to_capture:
+  - 65536
+  - 131072
+max_model_len:
+  - 8192
+  - 16384
+dtype: auto
+kv-cache-dtype: auto
+output_json: throughput_results.json
+
+# Below are some optional parameters that can be uncommented and modified as needed:
+# backend
+# dataset_name
+# dataset
+# dataset_path
+# n
+# num_prompts
+# hf_max_batch_size
+# async_engine
+# disable_frontend_multiprocessing
+# disable_detokenize
+# lora_path
+# prefix_len
+# random_range_ratio

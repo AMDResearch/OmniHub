@@ -111,7 +111,7 @@ echo "  $results_dir"
 
 # Run a sanity check on the nodes to ensure ROCm is working correctly.
 sanity_check_script="$omnihub_dir/scripts/sanity-check.sh"
-srun -N$SLURM_NNODES -n$SLURM_NNODES apptainer run $shared_dir/apptainer/omnihub.$gpu_arch.$rocm_version.sif /bin/bash -c "$sanity_check_script"
+srun -N$SLURM_NNODES -n$SLURM_NNODES apptainer exec $apptainer_image /bin/bash -c "$sanity_check_script"
 # Check if the sanity check script ran successfully
 if [ $? -ne 0 ]; then
     echo "Error: Sanity check failed. Exiting."
@@ -119,7 +119,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Run the system information script inside the Apptainer container
-apptainer run $shared_dir/apptainer/omnihub.$gpu_arch.$rocm_version.sif /bin/bash -c "$omnihub_dir/scripts/generate-sysinfo.sh $results_dir"
+apptainer exec $apptainer_image /bin/bash -c "$omnihub_dir/scripts/generate-sysinfo.sh $results_dir"
 
 # Store a copy of the application configuration.
 cp $omnihub_dir/$app_config $results_dir/app.yaml
