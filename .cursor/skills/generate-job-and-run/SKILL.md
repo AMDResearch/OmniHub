@@ -12,8 +12,8 @@ description: Generates SLURM job scripts with omnihub-generate-job and runs them
 
 ## Required arguments
 
-- **--omnihub-dir** — Path to the OmniHub repo (e.g. `$PWD` or `$HOME/omnihub`).
-- **--app-config** — Path to the application config file **relative to the OmniHub directory** (e.g. `applications/hf-infer/config-example.yaml`).
+- **--omnihub-dir** -- Path to the OmniHub repo (e.g. `$PWD` or `$HOME/omnihub`).
+- **--app-config** -- Path to the application config file **relative to the OmniHub directory** (e.g. `applications/hf-infer/config-example.yaml`).
 
 ## Optional arguments
 
@@ -23,20 +23,28 @@ description: Generates SLURM job scripts with omnihub-generate-job and runs them
 | --cluster | Cluster name: hpcfund, radha | hpcfund |
 | --partition | Partition / queue name (see config/<cluster>.yaml) | cluster default |
 | --num-nodes | Number of nodes | 1 |
-| --runner | Distributed runner: manual, torchrun. **Required for multi-node.** | — |
+| --runner | Distributed runner: manual, torchrun. **Required for multi-node.** | -- |
 | --tools | One or more profiling tools (see config/tools/*.yaml) | [] |
 | --time-limit | Job time limit (e.g. 30m, 2h) | 1h |
-| --output | Output script path (default: stdout) | — |
+| --output | Output script path (default: stdout) | -- |
 | --platform | apptainer, docker | apptainer |
 | --rocm-version | ROCm version | 7.1.0 |
 | --include-nodelist | Nodes to include (space-separated) | [] |
 | --exclude-nodelist | Nodes to exclude (space-separated) | [] |
-| --tasks-per-node | Override tasks per node (e.g. 1 for Primus); requires --runner manual | — |
+| --tasks-per-node | Override tasks per node (e.g. **1 for Primus**) | -- |
+
+## Built-in sanity checks
+
+Generated jobs automatically run **`scripts/sanity-check.sh`** before the main workload. It performs three checks: ROCm availability (`rocminfo`), GPU compute-mode (warns on exclusive partitions), and PyTorch NCCL `broadcast` + `all_reduce` via `torchrun` (uses `scripts/sanity_torch_dist.py`).
+
+If the sanity step fails (e.g. NCCL connection refused, traffic to link-local `169.254.x.x` addresses), fix cluster networking first (`NCCL_SOCKET_IFNAME`, `GLOO_SOCKET_IFNAME`, `MASTER_ADDR` reachability) before debugging application code.
 
 ## Runner choice
 
 - **Multi-node:** Always set `--runner`. Use **manual** when the application starts its own distributed launcher (e.g. Primus pretrain); use **torchrun** when OmniHub should launch torchrun.
 - **Single-node:** Runner is optional unless the app expects it.
+
+For Primus-specific runner guidance (tasks-per-node, MASTER_PORT, HF_HOME, GPU arch), see the [primus-pretrain](.cursor/skills/primus-pretrain/) skill.
 
 ## Example
 
@@ -48,12 +56,12 @@ description: Generates SLURM job scripts with omnihub-generate-job and runs them
 sbatch job.slurm
 ```
 
-Multi-node with manual runner (e.g. Primus):
+Multi-node with manual runner (Primus -- **always** `--tasks-per-node 1`):
 
 ```bash
 ./omnihub-generate-job --omnihub-dir $PWD \
   --app-config applications/primus-pretrain/config-example.yaml \
-  --num-nodes 2 --runner manual --partition mi2508x \
+  --num-nodes 2 --runner manual --tasks-per-node 1 --partition mi2508x \
   --output job.slurm
 sbatch job.slurm
 ```

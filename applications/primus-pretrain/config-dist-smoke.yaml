@@ -1,0 +1,34 @@
+# Dist-init smoke test for debugging OmniHub + Primus multinode hangs.
+#
+# Builds the same child environment as pretrain_wrapper.py, but instead of
+# running Primus training it only calls torch.distributed.init_process_group
+# + one collective.  Use with the SAME --runner, --num-nodes, --partition,
+# and --tasks-per-node as your failing Primus job.
+#
+# Usage:
+#   omnihub-generate-job \
+#     --omnihub-dir /path/to/omnihub \
+#     --app-config applications/primus-pretrain/config-dist-smoke.yaml \
+#     --runner manual --tasks-per-node 1 --num-nodes 2 \
+#     --partition <your-partition> \
+#     --output dist-smoke-job.sh
+#
+#   sbatch dist-smoke-job.sh
+#
+# Interpretation:
+#   - Hang with torchrun mode  -> port/address/firewall problem
+#   - Pass with torchrun mode  -> problem is inside Primus training (post-init)
+#   - Hang with direct mode    -> parent GPU/NCCL conflict (exclusive mode)
+#   - Pass with direct, hang with torchrun -> inner torchrun rendezvous issue
+entrypoint: applications/primus-pretrain/dist_init_smoke_entrypoint.py
+# "torchrun" (default): launch child via inner torchrun, matching run_pretrain.sh.
+# "direct": launch child via python3 directly (isolates torchrun rendezvous).
+smoke_mode: torchrun
+# Path to Primus (used for cwd; child script does not import Primus code).
+primus_path: /app/Primus
+# A valid path is required by the env builder but the child ignores EXP.
+exp_config: /app/Primus/examples/torchtitan/configs/MI300X/llama3.1_8B-BF16-pretrain.yaml
+
+# Inner torchrun port. Default is outer MASTER_PORT + 1 (e.g. 29401).
+# Uncomment to override:
+# master_port: 29401

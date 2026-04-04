@@ -11,10 +11,19 @@ description: Documents OmniHub repo layout, app configs, cluster and tools confi
 |------|--------|
 | config/ | Cluster YAMLs (e.g. hpcfund.yaml, radha.yaml), job.template, config/tools/*.yaml |
 | applications/ | One dir per app: config-example.yaml, entrypoint script, optional parse.py |
+| scripts/ | Shared utilities sourced by job.template and apps (sanity checks, env setup) |
 | omnihub/generate/ | job.py (omnihub-generate-job), sweep.py (omnihub-sweep), app_config.py |
 | omnihub/process/ | processor.py (omnihub-process), parsers.py |
 | omnihub/index/ | indexer.py (omnihub-index) |
 | omnihub/run/ | runner.py (omnihub-run, used inside the container by the job) |
+
+### scripts/ directory
+
+| Script | Purpose |
+|--------|---------|
+| sanity-check.sh | Consolidated sanity checks: ROCm (rocminfo), GPU compute-mode, and PyTorch NCCL (broadcast + all_reduce via torchrun). Called by job.template before the app. |
+| sanity_torch_dist.py | Minimal PyTorch distributed test (init_process_group, broadcast, all_reduce). Used by sanity-check.sh under torchrun. |
+| omnihub-apptainer-env.sh | Sourced inside Apptainer; sets ROCm paths and per-task pip cache. |
 
 ## App config (YAML)
 
@@ -48,6 +57,18 @@ Jobs write to **results_dir** (from the cluster config, typically `$WORK/results
 - **job.sh**, **job.yaml**, **app.yaml**, **job-status.yaml** — For post-processing.
 
 Processed output goes in **processed-data/** under each job dir (created by omnihub-process).
+
+## Job template pre-flight checks
+
+`config/job.template` runs **`scripts/sanity-check.sh`** on all allocated nodes before the main workload. It checks ROCm availability (`rocminfo`), GPU compute-mode, and PyTorch NCCL collectives under torchrun.
+
+These run inside the Apptainer container. If the sanity step fails, fix cluster networking (NCCL_SOCKET_IFNAME, MASTER_ADDR) before debugging application code.
+
+## Apptainer overlay
+
+Each Slurm task gets its own overlay (`$results_dir/.overlay.$SLURM_PROCID`). `scripts/omnihub-apptainer-env.sh` is sourced inside the container to set ROCm paths and create a per-task pip cache. The overlay provides a writable `/opt/venv` layer; `pip install` inside the container writes to this overlay rather than the read-only image.
+
+**Known benign warning**: `fuse-overlayfs exited: fuse: reading device: Software caused connection abort` at job exit is an Apptainer/fuse-overlayfs cleanup race condition. It does not affect results.
 
 ## Runner: manual vs torchrun
 

@@ -17,6 +17,12 @@ OmniHub provides tools to generate and run SLURM jobs for AI/ML workloads, run p
 
 **Skill:** [.cursor/skills/generate-job-and-run/](.cursor/skills/generate-job-and-run/)
 
+## Primus pretrain
+
+Primus pretraining (`applications/primus-pretrain/`) has its own wrapper, config overrides, and debugging tools. Key points: always use `--tasks-per-node 1`, inner MASTER_PORT is outer+1, `$HF_HOME` auto-resolves model assets, FP8/primus_turbo must be disabled on MI210.
+
+**Skill:** [.cursor/skills/primus-pretrain/](.cursor/skills/primus-pretrain/)
+
 ## Run sweeps
 
 Use **`omnihub-sweep`** to generate many job configs from a **template** (YAML with list values for sweep dimensions) and submit jobs.

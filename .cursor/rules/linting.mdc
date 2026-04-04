@@ -1,0 +1,34 @@
+---
+description: Linting and formatting guidelines enforced by pre-commit hooks
+alwaysApply: true
+---
+
+# Linting & Formatting
+
+This repo uses pre-commit hooks (`fail_fast: true`). All code must pass before committing.
+
+## Python (`.py`)
+
+- **Black** (v24.8.0) for formatting — default line length (88).
+- **isort** (v5.12.0) with `profile = "black"` for import sorting.
+- Never reorder or group imports manually; let isort handle it.
+
+```python
+# ✅ isort-compatible (black profile): stdlib → third-party → local, one per line
+import os
+import sys
+
+import torch
+
+from omnihub.utils import helper
+```
+
+## YAML (`.yaml`)
+
+- **yamlfmt** (v0.15.0) formats all YAML files.
+- **check-yaml** validates syntax.
+
+## All files
+
+- Files must end with exactly one newline (end-of-file-fixer).
+- No trailing whitespace on any line.

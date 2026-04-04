@@ -1,3 +1,5 @@
 *.pyc
+*.slurm
 .vscode/settings.json
 index.csv
+dist-smoke-job.sh

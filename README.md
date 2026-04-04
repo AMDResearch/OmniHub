@@ -74,6 +74,8 @@ Where `--omnihub-dir` points to your working copy of the OmniHub repository in
 the cluster and `--app-config` points to the path to the application configuration file relative to the OmniHub directory.
 Refer to [this document](docs/generate-job-examples.md) for more examples of using the `omnihub-generate-job` tool.
 
+Generated SLURM scripts run `scripts/sanity-check.sh` on the allocated nodes before the main workload. This checks ROCm availability (`rocminfo`), GPU compute-mode, and PyTorch NCCL (`broadcast` / `all_reduce` under `torchrun` via `scripts/sanity_torch_dist.py`). If the sanity step fails with errors such as NCCL connection refused or traffic directed at link-local addresses (for example `169.254.x.x`), fix cluster networking first—e.g. `NCCL_SOCKET_IFNAME` / `GLOO_SOCKET_IFNAME` and correct `MASTER_ADDR` reachability—before debugging application code.
+
 ### List of Command Line Options for `omnihub-generate-job`
 
 | Flag          | Options                                   | Description                          |

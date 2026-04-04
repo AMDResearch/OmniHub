@@ -22,6 +22,7 @@ gpu_mapping = {
     "mi250": "gfx90a",
     "mi300": "gfx942",
     "mi325": "gfx942",
+    "mi350": "gfx950",
 }
 
 # Sets of supported ROCm versions.
@@ -105,6 +106,7 @@ def generate_job(
     tools=[],
     time_limit="1h",
     output=None,
+    tasks_per_node=None,
 ):
     template_file = f"{config_dir}/job.template"
 
@@ -155,14 +157,14 @@ def generate_job(
         " --redirect 3"
     )
 
+    # One overlay per Slurm task. See scripts/omnihub-apptainer-env.sh for ROCm paths
+    # and node-local pip cache setup.
     apptainer_wrap = (
         'srun bash -c "mkdir -p $results_dir/.overlay.\\$SLURM_PROCID/{{upper,work}} &&'
         " apptainer exec --overlay $results_dir/.overlay.\\$SLURM_PROCID"
         " $apptainer_image"
-        ' /bin/bash -c \\"export ROCM_PATH=/opt/rocm; export ROCM_LIB=/opt/rocm/lib;'
-        " export LD_LIBRARY_PATH=/opt/rocm/lib:\\\\\\$LD_LIBRARY_PATH;"
-        " export PATH=\\\\\\$CONDA_DIR/bin:\\\\\\$PATH;"
-        ' {base_command}\\"" &'
+        ' /bin/bash -c \\"source $omnihub_dir/scripts/omnihub-apptainer-env.sh; '
+        '{base_command}\\"" &'
     )
 
     docker_wrap = (
@@ -306,6 +308,7 @@ def generate_job(
 
     # Default to using all GPUs in the partition.
     num_gpus_per_node = partitions[partition_name]["num-gpus"]
+    # One Slurm task per GPU when using --runner manual (e.g. Primus CLI + run_mode: single).
     num_tasks_per_node = num_gpus_per_node
 
     # Map the GPU type to the corresponding architecture.
@@ -351,12 +354,17 @@ def generate_job(
     if not runner:
         num_tasks_per_node = 1
 
-    if runner == "manual":
-        base_args.extend(manual_args)
-
     if runner == "torchrun":
         num_tasks_per_node = 1
+
+    # Optional override (e.g. --tasks-per-node 1 for one container per node)
+    if tasks_per_node is not None:
+        num_tasks_per_node = tasks_per_node
+
+    if runner == "torchrun":
         base_prefix.append(torchrun_prefix)
+    elif runner == "manual":
+        base_args.extend(manual_args)
 
     # Main set of variables as expected in the host context. We assume Apptainer
     # shares the same context as the host, so these are also used to format
@@ -597,6 +605,12 @@ def main():
         help="Time limit for the SLURM job as an integer followed by a time unit (default: 1h). Examples: 120s, 30m, 5h.",
         type=str,
         default="1h",
+    )
+    optional_group.add_argument(
+        "--tasks-per-node",
+        help="Override Slurm tasks per node (default: partition GPUs per node for --runner manual, 1 for --runner torchrun).",
+        type=int,
+        default=None,
     )
     optional_group.add_argument(
         "--output",

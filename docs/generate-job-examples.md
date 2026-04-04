@@ -8,6 +8,8 @@ in multi-node configurations).
 > **Note:** These examples assume you have already navigated to the top level of the omnihub repository. If you're in
 > another directory, please update the $PWD variable to point to your working copy.
 
+> **Sanity checks:** Generated jobs run `scripts/sanity-check.sh` (ROCm, GPU compute-mode, PyTorch NCCL) before the app. If that step fails, see the README note on NCCL / socket interfaces.
+
 ## Llama3.1 on HPC Fund
 
 ### Infer Llama3.1 (405B) with a single-node execution on MI300s (vLLM) with Omnistat

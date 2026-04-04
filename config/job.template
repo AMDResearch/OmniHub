@@ -22,6 +22,10 @@ head_port=29400
 
 # export CUDA_LAUNCH_BLOCKING=1
 
+## Raise the open-file limit; distributed training (torchrun, Primus) can
+## exceed the default when many processes import large Python environments.
+ulimit -n 65536
+
 ## Settings for multi-node FSDP
 ## https://rocm.docs.amd.com/en/latest/how-to/tuning-guides/mi300x/workload.html#multi-node-fsdp-and-rccl-settings
 export GPU_MAX_HW_QUEUE=2
@@ -109,11 +113,10 @@ tail -n +2 $results_dir/job.yaml
 echo "Results directory:"
 echo "  $results_dir"
 
-# Run a sanity check on the nodes to ensure ROCm is working correctly.
-sanity_check_script="$omnihub_dir/scripts/sanity-check.sh"
-srun -N$SLURM_NNODES -n$SLURM_NNODES apptainer exec $apptainer_image /bin/bash -c "$sanity_check_script"
-# Check if the sanity check script ran successfully
-if [ $? -ne 0 ]; then
+# Sanity checks: ROCm availability, GPU compute-mode, PyTorch NCCL.
+if ! head_host="$head_host" head_port="$head_port" apptainer_image="$apptainer_image" \
+        omnihub_dir="$omnihub_dir" num_gpus_per_node="$num_gpus_per_node" \
+        bash "$omnihub_dir/scripts/sanity-check.sh"; then
     echo "Error: Sanity check failed. Exiting."
     exit 1
 fi
@@ -148,6 +151,10 @@ function timeoutHandler() {
 # Register the signal handler for SIGUSR1
 trap timeoutHandler SIGUSR1
 
+# Set HF_HOME so that HuggingFace libraries can
+# resolve model repo IDs to pre-downloaded snapshots under models_dir/hub/.
+export HF_HOME="$models_dir"
+
 # Set TRITON_HOME to a job-specific directory under results_dir
 # This isolates Triton cache to this job and avoids interfering with other concurrent jobs
 export TRITON_HOME="$results_dir/.triton"
@@ -170,8 +177,7 @@ if [[ -d $TRITON_HOME ]]; then
     rm -rf $TRITON_HOME
 fi
 
-# Delete per-rank overlay directories to free up disk space
-# The overlays were only needed during container execution
+# Delete per-Slurm-task overlay dirs (default: one per node) to free disk space
 find "$results_dir" -maxdepth 1 -name '.overlay.*' -type d -exec rm -rf {} +
 
 statusExit $exit_code
