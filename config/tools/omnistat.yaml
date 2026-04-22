@@ -7,7 +7,7 @@ tools:
       omnistat_dir=$shared_dir/tools/omnistat/venv/bin/
       mkdir -p tools/omnistat
       cd tools/omnistat
-      $omnistat_dir/omnistat-usermode --start --interval 1
+      $omnistat_dir/omnistat-usermode --start --interval 1 --pushinterval 1
       cd -
     post-execute: |-
       # Stop Omnistat
@@ -22,7 +22,7 @@ tools:
       omnistat_dir=$shared_dir/tools/omnistat-rocprofiler/venv/bin/
       mkdir -p tools/omnistat-rocprofiler-pmc1
       cd tools/omnistat-rocprofiler-pmc1
-      $omnistat_dir/omnistat-usermode --start --interval 1
+      $omnistat_dir/omnistat-usermode --start --interval 1 --pushinterval 1
       cd -
     post-execute: |-
       # Stop Omnistat
@@ -39,7 +39,7 @@ tools:
       omnistat_dir=$shared_dir/tools/omnistat-rocprofiler/venv/bin/
       mkdir -p tools/omnistat-rocprofiler-pmc2
       cd tools/omnistat-rocprofiler-pmc2
-      $omnistat_dir/omnistat-usermode --start --interval 1
+      $omnistat_dir/omnistat-usermode --start --interval 1 --pushinterval 1
       cd -
     post-execute: |-
       # Stop Omnistat
