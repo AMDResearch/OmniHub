@@ -8,7 +8,7 @@ description: Generates SLURM job scripts with omnihub-generate-job and runs them
 ## Workflow
 
 1. Generate a SLURM job script with **omnihub-generate-job**.
-2. Submit with **sbatch** (e.g. `sbatch job.slurm`).
+2. Submit with **sbatch**. If the cluster requires a charge account (common on OLCF-style systems such as Frontier), pass **`-A <account>`** on the `sbatch` command (e.g. `sbatch -A ven114 job.slurm`). Do **not** add account lines to the generated OmniHub script; keep account selection in the dispatch command. If the first `sbatch` fails for account reasons, obtain the correct project name (ask the user, derive from stdout, or try site-appropriate discovery such as `sshare` / `sacctmgr`) and resubmit with **`-A`**.
 
 ## Required arguments
 
@@ -20,7 +20,7 @@ description: Generates SLURM job scripts with omnihub-generate-job and runs them
 | Argument | Description | Default |
 |----------|-------------|---------|
 | --app-args | Application-specific CLI args (e.g. `--VllmArguments.model=meta-llama/Meta-Llama-3.1-8B`) | "" |
-| --cluster | Cluster name: hpcfund, radha | hpcfund |
+| --cluster | Cluster name: hpcfund, radha, frontier | hpcfund |
 | --partition | Partition / queue name (see config/<cluster>.yaml) | cluster default |
 | --num-nodes | Number of nodes | 1 |
 | --runner | Distributed runner: manual, torchrun. **Required for multi-node.** | -- |
@@ -64,6 +64,20 @@ Multi-node with manual runner (Primus -- **always** `--tasks-per-node 1`):
   --num-nodes 2 --runner manual --tasks-per-node 1 --partition mi2508x \
   --output job.slurm
 sbatch job.slurm
+```
+
+## SLURM account when `sbatch` fails
+
+Many systems reject jobs unless a valid **charge account** (project) is set. Typical errors mention **Invalid account**, **association**, **no valid account**, or **bank**.
+
+**If submission fails on the first try, the agent should:**
+
+1. **Infer or obtain the account** — Ask the user for their project / allocation ID when unsure; optionally try `sshare` or `sacctmgr show assoc user=$USER format=Account%20` (site-dependent); `$SLURM_JOB_ACCOUNT` from a recent successful job may be the right value.
+
+2. **Resubmit with `-A` on `sbatch`** — Do not modify the generated job script for account. Use:
+
+```bash
+sbatch -A YOUR_PROJECT_HERE job.slurm
 ```
 
 ## Where to look

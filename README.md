@@ -27,7 +27,7 @@ with support for additional frameworks available upon request (contact [us](#con
 - NVLM (72B)
 - more can be added on request (contact [us](#contact))
 
-See [here](docs/models.md) for more details on the available ML models on Radha and the HPC Fund clusters.
+See [here](docs/models.md) for more details on the available ML models on Radha, Frontier, and the HPC Fund clusters.
 
 **Frameworks**
 
@@ -40,6 +40,7 @@ See [here](docs/models.md) for more details on the available ML models on Radha 
 
 - HPC Fund: multi-node, multi-GPU; Apptainer
 - Radha: multi-node, multi-GPU; Apptainer, Docker
+- Frontier (OLCF): multi-node, multi-GPU; Apptainer
 
 **Tools Sample List**
 
@@ -82,13 +83,15 @@ Generated SLURM scripts run `scripts/sanity-check.sh` on the allocated nodes bef
 |:--------------|:------------------------------------------|:-------------------------------------|
 | `omnihub-dir` |                                           | OmniHub working directory.           |
 | `app-config`  |                                           | Relative path to the app config.     |
-| `cluster`     | **`hpcfund`**, `radha`                    | Cluster name.                        |
+| `cluster`     | **`hpcfund`**, `radha`, `frontier`        | Cluster name.                        |
 | `partition`   |                                           | Partition or job queue name.   |
 | `num-nodes`   |                                           | Number of nodes to allocate.         |
 | `platform`    | **`apptainer`**, `docker`                 | Container platform to use.           |
 | `runner`      | `manual`, `torchrun`                      | Distributed runner for multi-node.   |
 | `tools`       | [List of tools](#list-of-supported-tools) | List of profiling tools.             |
 | `time-limit`  |                                           | SLURM job time limit.                |
+| `tasks-per-node` |                                        | Override Slurm tasks per node.       |
+| `image`       |                                           | Custom container image path.         |
 
 ### List of Supported Tools
 

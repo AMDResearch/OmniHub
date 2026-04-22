@@ -1,0 +1,197 @@
+---
+description: Multi-node networking on Frontier with Apptainer containers. Apply when working on multi-node jobs, NCCL/RCCL, Slingshot, aws-ofi-rccl, or container networking on Frontier.
+globs:
+  - omnihub/generate/job.py
+  - config/frontier.yaml
+  - config/job.template
+  - scripts/sanity-check.sh
+alwaysApply: false
+---
+
+# Frontier multi-node networking (Slingshot + Apptainer)
+
+## Problem: RCCL falls back to TCP sockets inside containers
+
+On Frontier, inter-node GPU communication requires the **aws-ofi-rccl** plugin
+(`librccl-net.so`) to bridge RCCL to the Slingshot fabric via libfabric/CXI.
+Without it, RCCL falls back to **TCP sockets**, which is far too slow for
+training collectives (FSDP reduce-scatter, all-reduce, etc.) and causes
+**NCCL watchdog timeouts**.
+
+### Diagnosis (NCCL_DEBUG=INFO)
+
+```
+NET/Plugin: Could not find: libnccl-net.so.    # plugin missing
+NET/IB : No device found.                       # no InfiniBand on Frontier
+Using network Socket                            # TCP fallback -- BAD
+```
+
+When the plugin is found but deps fail:
+```
+NET/Plugin: libfabric.so.1: version `FABRIC_1.7' not found
+NET/Plugin: libcxi.so.1: cannot open shared object file
+NET/Plugin: libc.so.6: version `GLIBC_2.38' not found
+```
+
+### Root cause: glibc mismatch
+
+The entire Slingshot stack on Frontier (SLES 15 SP6) requires **GLIBC_2.38**:
+- `librccl-net.so` (aws-ofi-rccl plugin)
+- `libfabric.so.1` (Cray libfabric, even version 1.20.1)
+- `libcxi.so.1` (CXI provider for Slingshot)
+
+The current container (`omnihub.training.gfx90a.710.sif`) is **Ubuntu 22.04
+with glibc 2.35** — a hard ABI incompatibility that cannot be bridged with
+LD_LIBRARY_PATH or bind mounts alone.
+
+### Solution: targeted host glibc injection (PROVEN WORKING)
+
+Replace ONLY the glibc components (ld.so + libc + libm + libpthread + libdl + librt +
+libgcc_s) with the host's glibc 2.38 versions using file-level Apptainer bind mounts.
+This satisfies GLIBC_2.38 while keeping the rest of the Ubuntu filesystem intact.
+
+Bind Slingshot-specific host libraries (libcxi, libnl, libhwloc, etc.) to a
+dedicated `/host-slingshot/` directory to avoid clobbering container libs.
+Disable the container's old libfabric (1.14.0) in the writable overlay so only
+the host's Cray libfabric (1.22.0) is found.
+
+**SBATCH flags:**
+```bash
+#SBATCH --network=disable_rdzv_get,single_node_vni
+```
+
+**Apptainer bind mounts:**
+```bash
+# 1) glibc 2.38 — replace individual files at the Ubuntu multiarch path
+UBU=/lib/x86_64-linux-gnu
+HOST=/lib64
+--bind ${HOST}/ld-linux-x86-64.so.2:${UBU}/ld-linux-x86-64.so.2
+--bind ${HOST}/libc.so.6:${UBU}/libc.so.6
+--bind ${HOST}/libm.so.6:${UBU}/libm.so.6
+--bind ${HOST}/libpthread.so.0:${UBU}/libpthread.so.0
+--bind ${HOST}/libdl.so.2:${UBU}/libdl.so.2
+--bind ${HOST}/librt.so.1:${UBU}/librt.so.1
+--bind ${HOST}/libgcc_s.so.1:${UBU}/libgcc_s.so.1
+
+# 2) Slingshot host libraries -> /host-slingshot/
+--bind /usr/lib64/libcxi.so.1:/host-slingshot/libcxi.so.1
+--bind /usr/lib64/libcxi.so.1.5.0:/host-slingshot/libcxi.so.1.5.0
+--bind /usr/lib64/libnl-3.so.200:/host-slingshot/libnl-3.so.200
+--bind /usr/lib64/libhwloc.so.15:/host-slingshot/libhwloc.so.15
+--bind /usr/lib64/libhwloc.so.15.7.0:/host-slingshot/libhwloc.so.15.7.0
+--bind /usr/lib64/libpciaccess.so.0:/host-slingshot/libpciaccess.so.0
+--bind /usr/lib64/libxml2.so.2:/host-slingshot/libxml2.so.2
+--bind /usr/lib64/libatomic.so.1:/host-slingshot/libatomic.so.1
+--bind /usr/lib64/libstdc++.so.6:/host-slingshot/libstdc++.so.6
+--bind /usr/lib64/libz.so.1:/host-slingshot/libz.so.1
+--bind /usr/lib64/liblzma.so.5:/host-slingshot/liblzma.so.5
+
+# 3) Cray libfabric + aws-ofi-rccl plugin
+--bind /opt/cray/libfabric/1.22.0:/opt/cray/libfabric/1.22.0
+--bind ${PLUGIN_PATH}:${PLUGIN_PATH}
+```
+
+**Inside the container:**
+```bash
+# Disable container's old libfabric (in writable overlay)
+mv /lib/x86_64-linux-gnu/libfabric.so.1 /lib/x86_64-linux-gnu/libfabric.so.1.disabled
+
+# LD_LIBRARY_PATH: plugin + host libfabric + slingshot deps + Ubuntu paths
+export LD_LIBRARY_PATH=${PLUGIN_PATH}/lib:/opt/cray/libfabric/1.22.0/lib64:/host-slingshot:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
+
+# LD_PRELOAD host libgcc_s
+export LD_PRELOAD=/lib/x86_64-linux-gnu/libgcc_s.so.1
+```
+
+**What NOT to do:**
+- Do NOT bind `/lib64:/lib64` or `/usr/lib64:/usr/lib64` wholesale — this
+  replaces ALL system libraries and breaks the container.
+- Do NOT use `--writable-tmpfs` together with `--overlay` — they conflict.
+
+**Alternative (if available):** Rebuild the container on Ubuntu 24.04+ (glibc 2.39).
+This would eliminate the need for glibc injection entirely.
+
+### Required env vars for Slingshot (from proven reference)
+
+```bash
+# Plugin
+PLUGIN_PATH=/ccs/sw/crusher/amdsw/aws-ofi-nccl/aws-ofi-nccl
+export NCCL_NET_PLUGIN=${PLUGIN_PATH}/lib/librccl-net.so
+export LD_LIBRARY_PATH=${PLUGIN_PATH}/lib:/opt/cray/libfabric/1.22.0/lib64:${LD_LIBRARY_PATH}
+
+# Slingshot CXI tuning (required for stability)
+export FI_MR_CACHE_MONITOR=kdreg2
+export FI_CXI_DEFAULT_CQ_SIZE=131072
+export FI_CXI_DEFAULT_TX_SIZE=2048
+export FI_CXI_RX_MATCH_MODE=hybrid
+export FI_CXI_RDV_PROTO=alt_read
+export FI_CXI_DISABLE_HOST_REGISTER=1
+export FI_CXI_RDZV_EAGER_SIZE=0
+export FI_CXI_RDZV_GET_MIN=0
+export FI_CXI_RDZV_THRESHOLD=0
+export HSA_FORCE_FINE_GRAIN_PCIE=1
+
+# RCCL network settings
+export NCCL_NET="AWS Libfabric"
+export NCCL_NET_GDR_LEVEL="PHB"
+export NCCL_CROSS_NIC=1
+export NCCL_SOCKET_IFNAME=hsn0
+export TORCH_NCCL_HIGH_PRIORITY=1
+export GPU_MAX_HW_QUEUES=2
+```
+
+### Key paths on Frontier
+
+| What | Path |
+|------|------|
+| aws-ofi-rccl plugin | `/ccs/sw/crusher/amdsw/aws-ofi-nccl/aws-ofi-nccl/lib/librccl-net.so` |
+| Cray libfabric 1.22.0 | `/opt/cray/libfabric/1.22.0/lib64/` |
+| libcxi (CXI provider) | `/usr/lib64/libcxi.so.1` |
+| Host glibc 2.38 | `/lib64/libc.so.6`, `/lib64/ld-linux-x86-64.so.2` |
+| OmniHub container | `/autofs/nccs-svm1_sw/crusher/amdsw/omnihub/apptainer/` |
+| Working 2-node script | `primus-2node-debug.slurm` (job 597862 verified) |
+| libcxi source (Plan B) | [HewlettPackard/shs-libcxi](https://github.com/HewlettPackard/shs-libcxi) |
+
+### Why 1-node works but 2-node fails
+
+Intra-node GPU communication uses **XGMI** (direct GPU-to-GPU links on
+MI250X) which doesn't need the OFI plugin. The plugin is only needed for
+**inter-node** collectives over Slingshot.
+
+### Single-node: NCCL_NET must NOT be set
+
+The aws-ofi-rccl plugin (commit `339b39d`) fails to initialize on
+single-node jobs because the CXI fabric is not active for intra-node
+communication. Setting `NCCL_NET="AWS Libfabric"` makes NCCL treat
+this as a fatal error ("Failed to initialize any NET plugin") instead
+of falling back to XGMI.
+
+`config/frontier.yaml` lists `NCCL_NET` and `NCCL_NET_PLUGIN` under
+`multinode-only-env` so they are automatically omitted for single-node
+jobs. The other Slingshot-related env vars (FI_CXI_*, HSA_*, etc.) are
+harmless on single-node and are kept.
+
+### Verified NCCL output (working)
+
+When the plugin loads correctly, NCCL_DEBUG=INFO shows:
+```
+NET/AWS Libfabric/0/GDRDMA          # OFI plugin active with GDR
+GPU Direct RDMA Enabled for GPU 0   # RDMA from GPU memory
+ncclCommInitRankConfig_impl ... Init COMPLETE
+```
+
+### Other fixes applied
+
+- **Overlay on /tmp**: `fuse-overlayfs` doesn't work on Lustre; moved
+  Apptainer overlay to `/tmp/omnihub-overlay.$SLURM_PROCID` (node-local NVMe).
+- **HTTP proxy**: Compute nodes need `http_proxy=http://proxy.ccs.ornl.gov:3128`
+  for PyPI access (added to `config/frontier.yaml` prelude-commands).
+- **Workspace override**: `pretrain_wrapper.py` now redirects Primus
+  `workspace` to `$OMNIHUB_RESULTS_DIR` to avoid writing inside read-only container.
+- **hf_assets_path**: Set explicitly in config to avoid HF_TOKEN requirement
+  even with `mock_data: true` (tokenizer still needs model assets).
+- **Sanity check**: Skip NCCL sanity check for multi-node debug runs — it
+  runs plain `apptainer exec` without bind mounts, so the OFI plugin always
+  fails and the test hangs on TCP sockets.
+- **MIOpen cache**: Set `MIOPEN_USER_DB_PATH=/tmp/$SLURM_JOB_ID` to avoid
+  Lustre I/O issues with MIOpen kernel cache.

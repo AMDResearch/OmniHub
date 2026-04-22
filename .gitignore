@@ -3,3 +3,13 @@
 .vscode/settings.json
 index.csv
 dist-smoke-job.sh
+
+# SLURM job output files
+*-slurm.out
+*-slurm.err
+
+# Sanity-check temp scripts (created by scripts/sanity-check.sh)
+.sanity-nccl-*.sh
+
+# Frontier test config (local variant, not committed)
+config/frontier-test.yaml

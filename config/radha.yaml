@@ -1,5 +1,6 @@
 cluster:
   name: radha
+  head-host-command: "$(dig +short $(hostname).amd.com)"
   models-dir: /shared/omnihub/models
   shared-dir: /home/shared/projs/omnihub
   data-dir: /home/shared/projs/omnihub/data

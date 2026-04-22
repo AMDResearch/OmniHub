@@ -1,5 +1,6 @@
 cluster:
   name: hpcfund
+  head-host-command: "$(ip -f inet addr show eth0 | awk '/inet / {print $2}' | cut -d/ -f1)"
   models-dir: /work1/models/amd
   shared-dir: /work1/amd/omnihub
   data-dir: /work1/amd/omnihub/data

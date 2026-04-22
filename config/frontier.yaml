@@ -1,0 +1,86 @@
+cluster:
+  name: frontier
+  head-host-command: "$(hostname)-hsn0"
+  # Avoid XALT/glibc mismatch on compute nodes (GLIBC_2.38 not found from libxalt_init.so)
+  prelude-commands:
+    - "unset LD_PRELOAD"
+    - "export http_proxy=http://proxy.ccs.ornl.gov:3128"
+    - "export https_proxy=http://proxy.ccs.ornl.gov:3128"
+  sbatch-options:
+    - "--network=disable_rdzv_get"
+  # Apptainer bind mounts: host glibc 2.38 + Slingshot networking stack.
+  # The Ubuntu 22.04 container ships glibc 2.35, but the Slingshot libraries
+  # (libcxi, Cray libfabric, aws-ofi-rccl) require GLIBC_2.38. We replace
+  # individual glibc files at their Ubuntu multiarch path and bind Slingshot
+  # host libraries to /host-slingshot/ to avoid clobbering container libs.
+  apptainer-binds:
+    # glibc 2.38 components (file-level replacements)
+    - "/lib64/ld-linux-x86-64.so.2:/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"
+    - "/lib64/libc.so.6:/lib/x86_64-linux-gnu/libc.so.6"
+    - "/lib64/libm.so.6:/lib/x86_64-linux-gnu/libm.so.6"
+    - "/lib64/libpthread.so.0:/lib/x86_64-linux-gnu/libpthread.so.0"
+    - "/lib64/libdl.so.2:/lib/x86_64-linux-gnu/libdl.so.2"
+    - "/lib64/librt.so.1:/lib/x86_64-linux-gnu/librt.so.1"
+    - "/lib64/libgcc_s.so.1:/lib/x86_64-linux-gnu/libgcc_s.so.1"
+    # Slingshot host libraries -> /host-slingshot/
+    - "/usr/lib64/libcxi.so.1:/host-slingshot/libcxi.so.1"
+    - "/usr/lib64/libcxi.so.1.5.0:/host-slingshot/libcxi.so.1.5.0"
+    - "/usr/lib64/libnl-3.so.200:/host-slingshot/libnl-3.so.200"
+    - "/usr/lib64/libhwloc.so.15:/host-slingshot/libhwloc.so.15"
+    - "/usr/lib64/libhwloc.so.15.7.0:/host-slingshot/libhwloc.so.15.7.0"
+    - "/usr/lib64/libpciaccess.so.0:/host-slingshot/libpciaccess.so.0"
+    - "/usr/lib64/libxml2.so.2:/host-slingshot/libxml2.so.2"
+    - "/usr/lib64/libatomic.so.1:/host-slingshot/libatomic.so.1"
+    - "/usr/lib64/libstdc++.so.6:/host-slingshot/libstdc++.so.6"
+    - "/usr/lib64/libz.so.1:/host-slingshot/libz.so.1"
+    - "/usr/lib64/liblzma.so.5:/host-slingshot/liblzma.so.5"
+    # Cray libfabric + aws-ofi-rccl plugin
+    - "/opt/cray/libfabric/1.22.0:/opt/cray/libfabric/1.22.0"
+    - "/ccs/sw/crusher/amdsw/aws-ofi-nccl/aws-ofi-nccl:/ccs/sw/crusher/amdsw/aws-ofi-nccl/aws-ofi-nccl"
+  # Slingshot CXI tuning + RCCL network settings, exported before srun.
+  # NCCL_NET and NCCL_NET_PLUGIN are listed in multinode-only-env because
+  # the aws-ofi-rccl plugin (commit 339b39d) fails to initialize on
+  # single-node jobs where the CXI fabric is inactive (intra-node uses
+  # XGMI).  Setting NCCL_NET forces NCCL to treat the failure as fatal.
+  multinode-only-env:
+    - NCCL_NET
+    - NCCL_NET_PLUGIN
+  environment:
+    NCCL_NET: "AWS Libfabric"
+    NCCL_NET_PLUGIN: "/ccs/sw/crusher/amdsw/aws-ofi-nccl/aws-ofi-nccl/lib/librccl-net.so"
+    NCCL_NET_GDR_LEVEL: "PHB"
+    NCCL_CROSS_NIC: "1"
+    FI_MR_CACHE_MONITOR: "kdreg2"
+    FI_CXI_DEFAULT_CQ_SIZE: "131072"
+    FI_CXI_DEFAULT_TX_SIZE: "2048"
+    FI_CXI_RX_MATCH_MODE: "hybrid"
+    FI_CXI_RDV_PROTO: "alt_read"
+    FI_CXI_DISABLE_HOST_REGISTER: "1"
+    FI_CXI_RDZV_EAGER_SIZE: "0"
+    FI_CXI_RDZV_GET_MIN: "0"
+    FI_CXI_RDZV_THRESHOLD: "0"
+    HSA_FORCE_FINE_GRAIN_PCIE: "1"
+  # Extra LD_LIBRARY_PATH entries prepended inside the container
+  container-ld-library-path:
+    - "/ccs/sw/crusher/amdsw/aws-ofi-nccl/aws-ofi-nccl/lib"
+    - "/opt/cray/libfabric/1.22.0/lib64"
+    - "/host-slingshot"
+    - "/lib/x86_64-linux-gnu"
+    - "/usr/lib/x86_64-linux-gnu"
+  # LD_PRELOAD inside the container
+  container-ld-preload:
+    - "/lib/x86_64-linux-gnu/libgcc_s.so.1"
+  # Glob patterns of container libraries to disable in the overlay
+  container-disable-libs:
+    - "/lib/x86_64-linux-gnu/libfabric.so.*"
+  models-dir: /autofs/nccs-svm1_sw/crusher/amdsw/omnihub/models
+  shared-dir: /autofs/nccs-svm1_sw/crusher/amdsw/omnihub
+  data-dir: /autofs/nccs-svm1_sw/crusher/amdsw/omnihub/data
+  results-dir: $PROJWORK/$SLURM_JOB_ACCOUNT/$USER/results/omnihub/$SLURM_JOB_ID
+  container-platforms:
+    - apptainer
+  subsets:
+    - partition: batch
+      gpu: mi250
+      num-gpus: 8
+      num-nodes: 40

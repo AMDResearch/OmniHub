@@ -74,6 +74,19 @@ Results root is typically `$WORK/results/omnihub` (from cluster config or env); 
    - Enable `NCCL_DEBUG=INFO` in the job environment for explicit transport logs (e.g. "NET/IB" vs "NET/Socket").
    - If only 1 of N HCAs is active (e.g. only `mlx5_0` at 200 Gb/s, others down), flag the physical cabling issue to sysadmin.
 
+4. **Timeout / external termination: training metrics summary**
+   - When the job **failed** with an **external termination** (e.g. **exit_code 143** / SIGTERM, time limit, **CANCELLED** step in sacct) and **no training/application errors** were found in the logs, add a **summarized training result** from the logs.
+   - **Where to look**: Scan **stdout** (srun-*.out and `logs/<run_id>/attempt_<N>/<rank>/stdout.log`) for telemetry lines. Common patterns:
+     - **Throughput**: `throughput`, `samples/s`, `tokens/s`, `samples per second`, `tokens per second`, `iter/s`, `iters/s`, `step/s`.
+     - **FLOPs / compute**: `FLOPs`, `TFLOPS`, `PFLOPS`, `flops`, `FLOPS`.
+     - **Model Flops Utilization**: `MFU`, `model flops utilization`, `Model Flops Utilization`.
+     - **Other**: `loss`, `lr`/`learning rate`, `step`, `iteration`, `global_step`, `epoch`, latency, `ms/iter`, `time per step`, GPU utilization, memory.
+   - **Extraction**: Use regex or line-by-line scan to capture numeric values associated with these names (e.g. `MFU: 0.42`, `throughput: 1234.5 samples/s`, `1234.5 TFLOPS`). Prefer the **latest attempt** and all ranks (or a representative set if many ranks).
+   - **Consolidation**: For each metric that appears multiple times (e.g. per step or per rank):
+     - Report **count** (number of values), **mean (average)**, **std dev**, **min**, **max**.
+     - If only one or a few values exist, report them as-is (e.g. “MFU: 0.41, 0.42 (2 steps)”).
+   - **Output**: Include a short “Training telemetry (before exit)” subsection in the report: list each metric with its statistics (e.g. “Throughput (samples/s): n=100, mean=1200, std=50, min=1100, max=1300”) so the user gets a concise summary of what was achieved before timeout.
+
 ## Workflow (periodic or on-demand)
 
 - **On-demand**: Run the check once when the user asks ("how's my job?", "any errors?", "check the results", "did it succeed?").

@@ -16,7 +16,7 @@ workspace: ./output
 # run_mode: single → wrapper sets RUN_MODE=single so primus-cli-direct uses python3 (no inner torchrun).
 # Works with OmniHub --runner manual (one Slurm task per GPU) or --runner torchrun (outer torchrun).
 # Omit run_mode to leave distributed env setup to Primus; primus-cli defaults to inner torchrun unless overridden.
-# run_mode: single
+run_mode: single
 # dry_run: true
 # Primus runner shell logs (INFO or DEBUG).
 # primus_log_level: INFO

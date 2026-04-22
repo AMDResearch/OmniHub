@@ -9,7 +9,7 @@ OmniHub provides tools to generate and run SLURM jobs for AI/ML workloads, run p
 
 **Required:** `--omnihub-dir`, `--app-config` (path relative to repo root).
 
-**Common options:** `--cluster` (hpcfund, radha), `--partition`, `--num-nodes`, `--runner` (manual | torchrun; required for multi-node), `--tools`, `--time-limit`, `--output`, `--app-args`.
+**Common options:** `--cluster` (hpcfund, radha, frontier), `--partition`, `--num-nodes`, `--runner` (manual | torchrun; required for multi-node), `--tools`, `--time-limit`, `--output`, `--image`, `--app-args`.
 
 - App configs: `applications/*/config-example.yaml`
 - Cluster configs: `config/*.yaml` (e.g. `config/hpcfund.yaml`)
@@ -19,7 +19,7 @@ OmniHub provides tools to generate and run SLURM jobs for AI/ML workloads, run p
 
 ## Primus pretrain
 
-Primus pretraining (`applications/primus-pretrain/`) has its own wrapper, config overrides, and debugging tools. Key points: always use `--tasks-per-node 1`, inner MASTER_PORT is outer+1, `$HF_HOME` auto-resolves model assets, FP8/primus_turbo must be disabled on MI210.
+Primus pretraining (`applications/primus-pretrain/`) has its own wrapper, config overrides, and debugging tools. Two launch modes: Mode A (Primus owns torchrun, `--tasks-per-node 1`) and Mode B (`run_mode: single`, one task per GPU -- default in example config). Inner MASTER_PORT is outer+1, `$HF_HOME` auto-resolves model assets, FP8/primus_turbo must be disabled on MI210.
 
 **Skill:** [.cursor/skills/primus-pretrain/](.cursor/skills/primus-pretrain/)
 

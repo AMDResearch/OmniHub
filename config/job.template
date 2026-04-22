@@ -12,6 +12,15 @@ $sbatch_extra_options
 
 $variables
 
+# Cluster-specific workarounds (from cluster YAML "prelude-commands").
+$cluster_prelude_commands
+
+# Cluster-specific environment variables (from cluster YAML "environment").
+$cluster_environment
+
+# Apptainer bind args for cluster-specific library injection (from cluster YAML "apptainer-binds").
+apptainer_bind_args="$apptainer_bind_args"
+
 head_host=$head_host_command
 head_port=29400
 
@@ -28,7 +37,7 @@ ulimit -n 65536
 
 ## Settings for multi-node FSDP
 ## https://rocm.docs.amd.com/en/latest/how-to/tuning-guides/mi300x/workload.html#multi-node-fsdp-and-rccl-settings
-export GPU_MAX_HW_QUEUE=2
+export GPU_MAX_HW_QUEUES=2
 
 # set the number of CPU threads to use for each task based on the number of cores
 export OMP_NUM_THREADS=$(( $(nproc --all) / $num_tasks_per_node ))
@@ -114,9 +123,10 @@ echo "Results directory:"
 echo "  $results_dir"
 
 # Sanity checks: ROCm availability, GPU compute-mode, PyTorch NCCL.
-if ! head_host="$head_host" head_port="$head_port" apptainer_image="$apptainer_image" \
-        omnihub_dir="$omnihub_dir" num_gpus_per_node="$num_gpus_per_node" \
-        bash "$omnihub_dir/scripts/sanity-check.sh"; then
+if ! head_host="$$head_host" head_port="$$head_port" apptainer_image="$$apptainer_image" \
+        omnihub_dir="$$omnihub_dir" num_gpus_per_node="$$num_gpus_per_node" \
+        apptainer_bind_args="$$apptainer_bind_args" \
+        bash "$$omnihub_dir/scripts/sanity-check.sh"; then
     echo "Error: Sanity check failed. Exiting."
     exit 1
 fi
@@ -176,8 +186,5 @@ post_end_ms=$(date +%s%3N)
 if [[ -d $TRITON_HOME ]]; then
     rm -rf $TRITON_HOME
 fi
-
-# Delete per-Slurm-task overlay dirs (default: one per node) to free disk space
-find "$results_dir" -maxdepth 1 -name '.overlay.*' -type d -exec rm -rf {} +
 
 statusExit $exit_code

@@ -423,6 +423,13 @@ def run_primus_pretrain(extra_args, config):
         # Merge override parameters with exp_config (overrides take precedence)
         merged_config = deep_merge(exp_config_data, override_params)
 
+        # Ensure workspace points to a writable location (results dir) so
+        # Primus hooks like prepare_experiment.py don't try to mkdir inside
+        # the read-only container image.
+        results_dir_override = os.environ.get("OMNIHUB_RESULTS_DIR")
+        if results_dir_override and "workspace" in merged_config:
+            merged_config["workspace"] = results_dir_override
+
         _resolve_hf_assets_from_hf_home(merged_config, primus_path)
 
         # Write merged config to a temporary file

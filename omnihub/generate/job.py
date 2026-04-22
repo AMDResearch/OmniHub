@@ -107,6 +107,7 @@ def generate_job(
     time_limit="1h",
     output=None,
     tasks_per_node=None,
+    image=None,
 ):
     template_file = f"{config_dir}/job.template"
 
@@ -157,11 +158,14 @@ def generate_job(
         " --redirect 3"
     )
 
-    # One overlay per Slurm task. See scripts/omnihub-apptainer-env.sh for ROCm paths
-    # and node-local pip cache setup.
+    # One overlay per Slurm task on node-local storage (/tmp) so overlayfs
+    # works reliably (Lustre does not support fuse-overlayfs properly).
+    # /tmp is ephemeral and cleaned up when the job ends.
+    # {apptainer_bind_args} is populated from the cluster YAML "apptainer-binds" key.
     apptainer_wrap = (
-        'srun bash -c "mkdir -p $results_dir/.overlay.\\$SLURM_PROCID/{{upper,work}} &&'
-        " apptainer exec --overlay $results_dir/.overlay.\\$SLURM_PROCID"
+        'srun bash -c "mkdir -p /tmp/omnihub-overlay.\\$SLURM_PROCID/{{upper,work}} &&'
+        " apptainer exec --overlay /tmp/omnihub-overlay.\\$SLURM_PROCID"
+        " {apptainer_bind_args}"
         " $apptainer_image"
         ' /bin/bash -c \\"source $omnihub_dir/scripts/omnihub-apptainer-env.sh; '
         '{base_command}\\"" &'
@@ -179,18 +183,13 @@ def generate_job(
         " --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
         " --device=/dev/kfd --device=/dev/dri"
         " --network=host --ipc=host --shm-size 8G"
-        " docker-virtual.atlartifactory.amd.com/amd/omnihub/radha:{gpu_arch}.{rocm_version}"
+        " {docker_image}"
         ' bash -c \\"set -o pipefail; {base_command} | fix-host-owner $docker_results_dir\\"" &'
     )
 
-    # Temporarily using these per-cluster commands for testing. These are
-    # candidates to be included in the cluster-specific configuration files, but
-    # it's still not clear how these should be exposed, or if we can find another
-    # option that works in all clusters.
-    head_host_commands = {
-        "hpcfund": "$(ip -f inet addr show eth0 | awk '/inet / {print $2}' | cut -d/ -f1)",
-        "radha": "$(dig +short $(hostname).amd.com)",
-    }
+    default_head_host_command = (
+        "$(ip -f inet addr show eth0 | awk '/inet / {print $2}' | cut -d/ -f1)"
+    )
 
     # STEP 1. Basic validation of command line options.
 
@@ -319,12 +318,20 @@ def generate_job(
         print(f"Unsupported GPU type: {gpu_type}")
         sys.exit(1)
 
-    # Select apptainer image based on application type.
-    apptainer_image_type = apptainer_image_type_from_app_config(app_config)
-    apptainer_image = (
-        f"{shared_dir}/apptainer/omnihub.{apptainer_image_type}."
-        f"{gpu_arch}.{rocm_version}.sif"
-    )
+    # Select container image: explicit --image overrides auto-detection.
+    if image:
+        apptainer_image = image
+        docker_image = image
+    else:
+        apptainer_image_type = apptainer_image_type_from_app_config(app_config)
+        apptainer_image = (
+            f"{shared_dir}/apptainer/omnihub.{apptainer_image_type}."
+            f"{gpu_arch}.{rocm_version}.sif"
+        )
+        docker_image = (
+            "docker-virtual.atlartifactory.amd.com/amd/omnihub/"
+            f"radha:{gpu_arch}.{rocm_version}"
+        )
 
     # STEP 3. Build commands to execute and configure profilers.
 
@@ -444,16 +451,22 @@ def generate_job(
 
     base_command = base_command.format(**variable_map)
 
+    # Build Apptainer --bind flags from the cluster YAML list.
+    apptainer_binds = cluster_info.get("apptainer-binds", [])
+    apptainer_bind_args = " ".join(f"--bind {b}" for b in apptainer_binds)
+
     command = base_command
     if platform == "apptainer":
-        command = apptainer_wrap.format(base_command=base_command)
+        command = apptainer_wrap.format(
+            base_command=base_command,
+            apptainer_bind_args=apptainer_bind_args,
+        )
     elif platform == "docker":
         docker_args = " ".join([f"-e {x[0]}={x[1]}" for x in docker_environment])
         command = docker_wrap.format(
             base_command=base_command,
             docker_args=docker_args,
-            gpu_arch=gpu_arch,
-            rocm_version=rocm_version,
+            docker_image=docker_image,
         )
 
     execute.append(command)
@@ -465,8 +478,10 @@ def generate_job(
 
     bash_variables = [f"{x[0]}={x[1]}" for x in variables]
 
-    # generate sbatch extra options based on include and exclude nodelists
+    # generate sbatch extra options from cluster config and CLI flags
     sbatch_extra_options = []
+    for opt in cluster_info.get("sbatch-options", []):
+        sbatch_extra_options.append(f"#SBATCH {opt}")
     if include_nodelist:
         sbatch_extra_options.append(f"#SBATCH --nodelist={','.join(include_nodelist)}")
     if exclude_nodelist:
@@ -478,6 +493,52 @@ def generate_job(
     if platform == "docker":
         bash_variables.extend([f"docker_{x[0]}={x[1]}" for x in docker_variables])
 
+    # Cluster-specific commands run early (before first srun),
+    # e.g. unset LD_PRELOAD for XALT/glibc workarounds.
+    prelude_lines = cluster_info.get("prelude-commands", [])
+    cluster_prelude_commands = "\n".join(prelude_lines) if prelude_lines else ""
+
+    # Cluster-specific environment variables from the cluster YAML.
+    # Keys listed in "multinode-only-env" are only exported for multi-node
+    # jobs (num_nodes > 1).  This is used on Frontier to skip NCCL_NET /
+    # NCCL_NET_PLUGIN on single-node runs where the OFI plugin cannot
+    # initialize (aws-ofi-rccl 339b39d, CXI inactive for intra-node XGMI).
+    cluster_env = cluster_info.get("environment", {})
+    multinode_only = set(cluster_info.get("multinode-only-env", []))
+    cluster_environment_lines = [
+        f'export {k}="{v}"' if " " in str(v) else f"export {k}={v}"
+        for k, v in cluster_env.items()
+        if not (num_nodes == 1 and k in multinode_only)
+    ]
+
+    # Container-side library path / preload / disable-libs, passed as
+    # APPTAINERENV_ so they propagate into the Apptainer container and are
+    # picked up by omnihub-apptainer-env.sh.
+    container_ld_library_path = cluster_info.get("container-ld-library-path", [])
+    if container_ld_library_path:
+        joined = ":".join(container_ld_library_path)
+        cluster_environment_lines.append(
+            f"export APPTAINERENV_OMNIHUB_EXTRA_LD_LIBRARY_PATH={joined}"
+        )
+
+    container_ld_preload = cluster_info.get("container-ld-preload", [])
+    if container_ld_preload:
+        joined = ":".join(container_ld_preload)
+        cluster_environment_lines.append(
+            f"export APPTAINERENV_OMNIHUB_EXTRA_LD_PRELOAD={joined}"
+        )
+
+    container_disable_libs = cluster_info.get("container-disable-libs", [])
+    if container_disable_libs:
+        joined = ":".join(container_disable_libs)
+        cluster_environment_lines.append(
+            f"export APPTAINERENV_OMNIHUB_DISABLE_LIBS={joined}"
+        )
+
+    cluster_environment = (
+        "\n".join(cluster_environment_lines) if cluster_environment_lines else ""
+    )
+
     substitutions = {
         "job_name": "omnihub",
         "partition": partition_name,
@@ -486,7 +547,12 @@ def generate_job(
         "sbatch_extra_options": (
             "\n".join(sbatch_extra_options) if sbatch_extra_options else ""
         ),
-        "head_host_command": head_host_commands[cluster],
+        "cluster_prelude_commands": cluster_prelude_commands,
+        "cluster_environment": cluster_environment,
+        "apptainer_bind_args": apptainer_bind_args,
+        "head_host_command": cluster_info.get(
+            "head-host-command", default_head_host_command
+        ),
         "num_tasks_per_node": num_tasks_per_node,
         "num_gpus_per_node": num_gpus_per_node,
         "time_limit": time_limit_delta,
@@ -581,7 +647,7 @@ def main():
     )
     optional_group.add_argument(
         "--cluster",
-        help="Name of the cluster:\n\thpcfund (default)\n\tradha",
+        help="Name of the cluster:\n\thpcfund (default)\n\tradha\n\tfrontier",
         type=str,
         default="hpcfund",
     )
@@ -610,6 +676,15 @@ def main():
         "--tasks-per-node",
         help="Override Slurm tasks per node (default: partition GPUs per node for --runner manual, 1 for --runner torchrun).",
         type=int,
+        default=None,
+    )
+    optional_group.add_argument(
+        "--image",
+        help=(
+            "Path to a custom container image (default: auto-detected "
+            "from cluster config, app type, GPU arch and ROCm version)."
+        ),
+        type=str,
         default=None,
     )
     optional_group.add_argument(

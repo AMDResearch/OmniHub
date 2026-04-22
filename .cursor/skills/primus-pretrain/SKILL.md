@@ -9,10 +9,16 @@ Primus pretraining is launched through `applications/primus-pretrain/pretrain_wr
 
 ## Job generation
 
-Always use `--tasks-per-node 1` when generating jobs for Primus. The pretrain wrapper expects one Slurm task per node (`SLURM_NTASKS == SLURM_NNODES`). With `--runner manual`, the default is one task per GPU, which breaks multi-node Primus unless overridden.
+Always use `--runner manual` for Primus. Do **not** use `--runner torchrun` -- OmniHub's torchrun runner passes `nproc_per_node=num_gpus` which conflicts with Primus's own process management, and the single Apptainer overlay per node causes `pip install` race conditions when multiple workers share it.
+
+There are two supported launch modes. The choice depends on `run_mode` in the app config.
+
+### Mode A: Primus owns torchrun (`use_primus_cli: true`, `run_mode` unset)
+
+Primus's `run_pretrain_cli.sh` launches its own inner torchrun per node. OmniHub must give it **one Slurm task per node** so Primus controls all GPUs on the node.
 
 ```bash
-# Multi-node (always --runner manual --tasks-per-node 1)
+# use_primus_cli: true, run_mode not set (Primus launches inner torchrun)
 ./omnihub-generate-job --omnihub-dir $PWD \
   --app-config applications/primus-pretrain/config-example.yaml \
   --num-nodes 2 --runner manual --tasks-per-node 1 --partition mi2508x \
@@ -20,9 +26,33 @@ Always use `--tasks-per-node 1` when generating jobs for Primus. The pretrain wr
 sbatch job.slurm
 ```
 
-- **Multi-node:** use `--runner manual --tasks-per-node 1` together.
-- **Single-node:** include `--tasks-per-node 1` for consistency; without `--runner`, OmniHub already defaults to one task, but the explicit flag avoids mistakes if `--runner manual` is added later.
-- **`--runner torchrun`**: OmniHub already uses one Slurm task per node, so `--tasks-per-node 1` is redundant. This is an alternative to `--runner manual --tasks-per-node 1` when you want an **outer** torchrun; match `run_mode` and `use_primus_cli` in the config to the flow you intend.
+- Use `--runner manual --tasks-per-node 1` together.
+- Single-node: include `--tasks-per-node 1` for consistency.
+
+### Mode B: OmniHub owns ranks (`use_primus_cli: true`, `run_mode: single`)
+
+Setting `run_mode: single` tells Primus to run `python3` directly (no inner torchrun). OmniHub must provide **one Slurm task per GPU** so each task is one rank.
+
+```bash
+# use_primus_cli: true, run_mode: single (OmniHub manages ranks)
+./omnihub-generate-job --omnihub-dir $PWD \
+  --app-config applications/primus-pretrain/config-example.yaml \
+  --num-nodes 2 --runner manual --partition mi2508x \
+  --output job.slurm
+sbatch job.slurm
+```
+
+- Use `--runner manual` **without** `--tasks-per-node 1` (the default is one task per GPU, which is correct here).
+- Each srun task gets its own Apptainer container and overlay, so Primus's `pip install -e torchtitan` hook runs once per overlay with no contention.
+
+### Why not `--runner torchrun`?
+
+OmniHub's torchrun runner creates one Apptainer container per node with a single overlay, then launches torchrun inside with `--nproc_per_node=<num_gpus>`. This causes two problems for Primus:
+
+1. **Overlay contention**: All GPU workers share one writable overlay. Primus's hooks run `pip install -e torchtitan` concurrently in each worker, racing on stale editable-install metadata in the container image (`ENOENT` on `__editable__.torchtitan-0.0.2.pth`).
+2. **Double torchrun**: In Mode A, Primus launches its own inner torchrun. Having an outer torchrun that already spawned N workers means N independent inner torchruns each trying to claim all GPUs.
+
+The manual runner avoids both issues: each Slurm task is its own isolated Apptainer container.
 
 ## MASTER_PORT
 
@@ -101,12 +131,14 @@ sbatch dist-smoke-job.sh
 
 This reproduces `pretrain_wrapper.py`'s full environment setup (same env vars, same MASTER_PORT+1) but stops after `torch.distributed.init_process_group`, running a broadcast + all_reduce test. If the smoke test passes but Primus hangs, the issue is in Primus hooks or training, not distributed init.
 
-### Common Primus hang causes
+### Common Primus hang/crash causes
 
 1. **Hook failures on non-rank-0 nodes**: Primus hooks (`prepare_experiment.sh/py`) only log on `NODE_RANK == 0`. Other nodes exit silently, causing node 0's torchrun to hang waiting. Check **all** rank logs.
-2. **`pip install -e torchtitan`** race conditions on shared filesystem overlays.
+2. **`pip install -e torchtitan` overlay contention** (Apptainer + torchrun runner): The container image has a stale editable install of torchtitan -- `dist-info/RECORD` references `__editable__.torchtitan-0.0.2.pth` but the file doesn't exist in the squashfs. With the torchrun runner, multiple worker processes share one Apptainer overlay and race on `pip install`, causing `ENOENT` crashes. With the manual runner each task gets its own overlay so a single pip install per overlay succeeds. This is why `run_mode: single` must use `--runner manual`, not `--runner torchrun`.
 3. **HuggingFace tokenizer download waits**: Node 0 downloads, other nodes poll for a file that may be inside an isolated Apptainer overlay.
 4. **`EADDRINUSE`**: Inner and outer torchrun competing for the same port. The wrapper's port+1 logic should prevent this, but verify with `MASTER_PORT` in logs.
+5. **No DNS inside Apptainer**: Primus hooks that call pip may try to fetch metadata from PyPI, failing with `Temporary failure in name resolution`. The `--no-deps` flag or pre-installing packages avoids this.
+6. **"Failed to initialize any NET plugin" on single-node Frontier**: The aws-ofi-rccl plugin (commit `339b39d`) cannot initialize when the Slingshot fabric is unused (intra-node uses XGMI). `config/frontier.yaml` lists `NCCL_NET` / `NCCL_NET_PLUGIN` under `multinode-only-env` so they are omitted for `--num-nodes 1`. If you see this error, verify the generated job script does **not** contain `export NCCL_NET=`.
 
 ### Log filtering
 
