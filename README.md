@@ -62,7 +62,7 @@ performance tools. For non-SLURM systems, the tool can serve as a reference to m
 In its most basic form, SLURM job script generation and job execution work as follows:
 
 ```console
-git clone https://github.com/AARInternal/omnihub.git $HOME/omnihub
+git clone https://github.com/AMDResearch/omnihub.git $HOME/omnihub
 cd $HOME/omnihub
 
 ./omnihub-generate-job --omnihub-dir $HOME/omnihub \
@@ -256,4 +256,4 @@ If you want to contribute to OmniHub, make sure you read [this document](docs/de
 ## Contact
 
 - Email: [dl.RAD-omnihub@amd.com](mailto:dl.RAD-omnihub@amd.com)
-- [GitHub Discussions](https://github.com/AARInternal/omnihub/discussions)
+- [GitHub Discussions](https://github.com/AMDResearch/omnihub/discussions)
