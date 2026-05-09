@@ -9,7 +9,7 @@ OmniHub provides tools to generate and run SLURM jobs for AI/ML workloads, run p
 
 **Required:** `--omnihub-dir`, `--app-config` (path relative to repo root).
 
-**Common options:** `--cluster` (hpcfund, radha, frontier), `--partition`, `--num-nodes`, `--runner` (manual | torchrun; required for multi-node), `--tools`, `--time-limit`, `--output`, `--image`, `--app-args`.
+**Common options:** `--cluster` (hpcfund, frontier), `--partition`, `--num-nodes`, `--runner` (manual | torchrun; required for multi-node), `--tools`, `--time-limit`, `--output`, `--image`, `--app-args`.
 
 - App configs: `applications/*/config-example.yaml`
 - Cluster configs: `config/*.yaml` (e.g. `config/hpcfund.yaml`)
