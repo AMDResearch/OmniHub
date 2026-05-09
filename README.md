@@ -83,7 +83,7 @@ Generated SLURM scripts run `scripts/sanity-check.sh` on the allocated nodes bef
 |:--------------|:------------------------------------------|:-------------------------------------|
 | `omnihub-dir` |                                           | OmniHub working directory.           |
 | `app-config`  |                                           | Relative path to the app config.     |
-| `cluster`     | **`hpcfund`**, `radha`, `frontier`        | Cluster name.                        |
+| `cluster`     | **`hpcfund`**, `frontier`                 | Cluster name.                        |
 | `partition`   |                                           | Partition or job queue name.   |
 | `num-nodes`   |                                           | Number of nodes to allocate.         |
 | `platform`    | **`apptainer`**, `docker`                 | Container platform to use.           |

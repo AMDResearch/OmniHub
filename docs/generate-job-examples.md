@@ -46,27 +46,3 @@ sbatch job.slurm
 ./omnihub-generate-job --omnihub-dir $PWD --cluster hpcfund --partition mi2104x --app-config applications/hf-infer/config-example.yaml --tools rocprof-compute --output job.slurm
 sbatch job.slurm
 ```
-
-## Llama3.1 on Radha
-
-### Infer on MI210s (Hugging Face) with rocprof-compute
-
-```console
-./omnihub-generate-job --omnihub-dir $PWD --cluster radha --app-config applications/hf-infer/config-example.yaml --tools rocprof-compute --output job.slurm
-sbatch job.slurm
-```
-
-If the run was successful, you will find the rocprof-compute output stats at
-`$HOME/results/omnihub/$SLURM_JOB_ID/rocprof-compute`, with which you may do further
-analysis (e.g., roofline analysis).
-
-### Infer on MI210s (Hugging Face) with Omnitrace
-
-```console
-./omnihub-generate-job --omnihub-dir $PWD --cluster radha --app-config applications/hf-infer/config-example.yaml --tools omnitrace --output job.slurm
-sbatch job.slurm
-```
-
-If the run was successful, you will find the omnitrace output stats under
-`$HOME/results/omnihub/$SLURM_JOB_ID/omnitrace`, with which
-you may use [Perfetto](https://ui.perfetto.dev/) for interactive exploration.

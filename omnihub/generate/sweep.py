@@ -234,7 +234,7 @@ def main():
     optional_group = parser.add_argument_group("Optional arguments")
     optional_group.add_argument(
         "--cluster",
-        help="Name of the cluster:\n\thpcfund (default)\n\tradha",
+        help="Name of the cluster:\n\thpcfund (default)\n\tfrontier",
         type=str,
         default="hpcfund",
     )

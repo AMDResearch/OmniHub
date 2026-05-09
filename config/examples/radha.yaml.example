@@ -1,3 +1,7 @@
+# Example cluster config for an AMD-internal cluster (Radha).
+# Paths, DNS entries, and registry URLs below are AMD-specific and will not
+# work outside AMD infrastructure. Use this as a reference when writing your
+# own cluster config.
 cluster:
   name: radha
   head-host-command: "$(dig +short $(hostname).amd.com)"
@@ -8,6 +12,7 @@ cluster:
   container-platforms:
     - apptainer
     - docker
+  docker-image: "mkmhub.amd.com/sw-radops-dev/omnihub/radha"
   subsets:
     - partition: mi210-low
       gpu: mi210

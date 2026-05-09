@@ -323,15 +323,23 @@ def generate_job(
         apptainer_image = image
         docker_image = image
     else:
-        apptainer_image_type = apptainer_image_type_from_app_config(app_config)
+        image_variant = apptainer_image_type_from_app_config(app_config)
         apptainer_image = (
-            f"{shared_dir}/apptainer/omnihub.{apptainer_image_type}."
+            f"{shared_dir}/apptainer/omnihub.{image_variant}."
             f"{gpu_arch}.{rocm_version}.sif"
         )
-        docker_image = (
-            "docker-virtual.atlartifactory.amd.com/amd/omnihub/"
-            f"radha:{gpu_arch}.{rocm_version}"
-        )
+        if "docker" in container_platforms:
+            docker_image_base = cluster_info.get("docker-image")
+            if not docker_image_base:
+                print(
+                    f"'docker-image' key is required in {cluster_file} when docker is listed in container-platforms"
+                )
+                sys.exit(1)
+            docker_image = (
+                f"{docker_image_base}:{image_variant}.{gpu_arch}.{rocm_version}"
+            )
+        else:
+            docker_image = ""
 
     # STEP 3. Build commands to execute and configure profilers.
 
@@ -647,7 +655,7 @@ def main():
     )
     optional_group.add_argument(
         "--cluster",
-        help="Name of the cluster:\n\thpcfund (default)\n\tradha\n\tfrontier",
+        help="Name of the cluster:\n\thpcfund (default)\n\tfrontier",
         type=str,
         default="hpcfund",
     )
