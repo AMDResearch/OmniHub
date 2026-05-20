@@ -27,7 +27,7 @@ with support for additional frameworks available upon request (contact [us](#con
 - NVLM (72B)
 - more can be added on request (contact [us](#contact))
 
-See [here](docs/models.md) for more details on the available ML models on Radha, Frontier, and the HPC Fund clusters.
+See [here](docs/models.md) for more details on the available ML models on Frontier and the HPC Fund clusters.
 
 **Frameworks**
 
@@ -39,7 +39,6 @@ See [here](docs/models.md) for more details on the available ML models on Radha,
 **Systems**
 
 - HPC Fund: multi-node, multi-GPU; Apptainer
-- Radha: multi-node, multi-GPU; Apptainer, Docker
 - Frontier (OLCF): multi-node, multi-GPU; Apptainer
 
 **Tools Sample List**
