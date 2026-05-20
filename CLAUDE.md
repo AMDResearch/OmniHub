@@ -22,10 +22,6 @@ Use **`omnihub-sweep`**: `--omnihub-dir`, `--sweep-dir`, `--template` (YAML with
 
 Do not run index before process; index expects `processed-data/` in each job dir. Output is `index.csv` with two-level column headers (Pandas: `header=[0,1], index_col=0`).
 
-## When the user asks about the OmniHub Agent
-
-The agent exists only on branch **`aaji/agent`**. Commands: `omnihub-agent start`, `stop`, `status`, `run-once`. Config: `~/.omnihub_agent/config.yaml` or `OMNIHUB_AGENT_*` env vars. Full doc: `docs/omnihub-agent.md` on that branch (lifecycle, LLM/tunnel, systemd).
-
 ## Key paths
 
 | Path | Purpose |
@@ -40,6 +36,5 @@ The agent exists only on branch **`aaji/agent`**. Commands: `omnihub-agent start
 
 - **Multi-node:** Forgetting `--runner` leads to single-process behavior; use `--runner manual` for apps that start torchrun themselves.
 - **Index fails:** Run `omnihub-process` first so each job dir has `processed-data/`.
-- **Agent:** Branch must be `aaji/agent`; not on main.
 
-For more detail, see [AGENTS.md](AGENTS.md) and the project skills under `.cursor/skills/`.
+For more detail, see [AGENTS.md](AGENTS.md).

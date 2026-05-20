@@ -1,8 +1,3 @@
----
-name: generate-job-and-run
-description: Generates SLURM job scripts with omnihub-generate-job and runs them with sbatch. Use when the user wants to generate a job, run a job, use omnihub-generate-job, sbatch, set app-config, partition, or run a single OmniHub job.
----
-
 # Generate job and run
 
 ## Workflow
@@ -44,7 +39,7 @@ If the sanity step fails (e.g. NCCL connection refused, traffic to link-local `1
 - **Multi-node:** Always set `--runner`. Use **manual** when the application starts its own distributed launcher (e.g. Primus pretrain); use **torchrun** when OmniHub should launch torchrun.
 - **Single-node:** Runner is optional unless the app expects it.
 
-For Primus-specific runner guidance (tasks-per-node, MASTER_PORT, HF_HOME, GPU arch), see the [primus-pretrain](.cursor/skills/primus-pretrain/) skill.
+For Primus-specific runner guidance (tasks-per-node, MASTER_PORT, HF_HOME, GPU arch), see `/project:primus-pretrain`.
 
 ## Example
 
@@ -70,7 +65,7 @@ sbatch job.slurm
 
 Many systems reject jobs unless a valid **charge account** (project) is set. Typical errors mention **Invalid account**, **association**, **no valid account**, or **bank**.
 
-**If submission fails on the first try, the agent should:**
+**If submission fails on the first try:**
 
 1. **Infer or obtain the account** — Ask the user for their project / allocation ID when unsure; optionally try `sshare` or `sacctmgr show assoc user=$USER format=Account%20` (site-dependent); `$SLURM_JOB_ACCOUNT` from a recent successful job may be the right value.
 

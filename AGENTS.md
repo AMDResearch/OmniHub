@@ -1,6 +1,6 @@
 # OmniHub — Agent orientation
 
-OmniHub provides tools to generate and run SLURM jobs for AI/ML workloads, run parameter sweeps, and post-process results. Optionally, the **OmniHub Agent** (on branch `aaji/agent`) can run as a service for monitoring and recommendations.
+OmniHub provides tools to generate and run SLURM jobs for AI/ML workloads, run parameter sweeps, and post-process results.
 
 ## Generate and run a job
 
@@ -41,12 +41,6 @@ Use **`omnihub-sweep`** to generate many job configs from a **template** (YAML w
 Index CSV has two header rows; load in Pandas: `pandas.read_csv("index.csv", header=[0,1], index_col=0)`.
 
 **Skill:** [.cursor/skills/post-process-results/](.cursor/skills/post-process-results/)
-
-## OmniHub Agent (aaji/agent branch)
-
-Only available on branch **`aaji/agent`**. CLI: `omnihub-agent start | stop | status | run-once`. Config: `~/.omnihub_agent/config.yaml` or env vars `OMNIHUB_AGENT_*`. See `docs/omnihub-agent.md` on that branch.
-
-**Skill:** [.cursor/skills/omnihub-agent/](.cursor/skills/omnihub-agent/)
 
 ## Conventions
 

@@ -13,3 +13,9 @@ dist-smoke-job.sh
 
 # Frontier test config (local variant, not committed)
 config/frontier-test.yaml
+
+# Claude Code - local/personal files (commands are tracked)
+.claude/settings.local.json
+.claude/memory/
+.claude/plans/
+.claude/worktrees/

@@ -1,15 +1,10 @@
----
-name: sweeps
-description: Creates and runs parameter sweeps with omnihub-sweep using templates, sweep-dir, and optional resume. Use when the user wants to run a sweep, use omnihub-sweep, create a parameter sweep, use a sweep template, set sweep-dir, or do a dry-run sweep.
----
-
 # OmniHub sweeps
 
 ## How it works
 
 1. **Template** — A YAML file (like an app config) where some values are **lists**. Each list is a sweep dimension.
 2. **Configurations** — `omnihub-sweep` expands the template into all combinations and writes configs to `sweep-dir/configurations/` (e.g. `config-00000.yaml`, ...).
-3. **Jobs** — For each combination of (partition × num_nodes × tool set × config), it generates a job script in `sweep-dir/jobs/` and submits it (unless `--dry-run`).
+3. **Jobs** — For each combination of (partition x num_nodes x tool set x config), it generates a job script in `sweep-dir/jobs/` and submits it (unless `--dry-run`).
 4. **Resume** — Submitted job IDs are stored in `sweep-dir/submitted.yaml`. Re-run the **same** sweep command to skip already-submitted combinations and continue.
 
 ## Required arguments
@@ -48,7 +43,7 @@ output_len: [128, 256]
 batch_size: 8
 ```
 
-This yields 4 configs (2×2). Sweep then multiplies by partitions × num_nodes × tool sets.
+This yields 4 configs (2x2). Sweep then multiplies by partitions x num_nodes x tool sets.
 
 ## Directory layout
 
