@@ -53,7 +53,7 @@ This satisfies GLIBC_2.38 while keeping the rest of the Ubuntu filesystem intact
 Bind Slingshot-specific host libraries (libcxi, libnl, libhwloc, etc.) to a
 dedicated `/host-slingshot/` directory to avoid clobbering container libs.
 Disable the container's old libfabric (1.14.0) in the writable overlay so only
-the host's Cray libfabric (1.22.0) is found.
+the host's Cray libfabric (2.3.1) is found.
 
 **SBATCH flags:**
 ```bash
@@ -74,11 +74,15 @@ HOST=/lib64
 --bind ${HOST}/libgcc_s.so.1:${UBU}/libgcc_s.so.1
 
 # 2) Slingshot host libraries -> /host-slingshot/
+# Bind the major-SONAME symlinks ONLY (libcxi.so.1, libhwloc.so.15). Apptainer
+# dereferences the symlink source and writes the real (minor-versioned) library
+# to the destination, so the minor version need NOT be bound. The SONAME names
+# are stable across Cray PE minor bumps (libcxi 1.5.0->1.6.0, libhwloc
+# 15.7.0->15.8.1); pinning the minor version previously broke container creation
+# with "FATAL: mount source ... doesn't exist" after a system update.
 --bind /usr/lib64/libcxi.so.1:/host-slingshot/libcxi.so.1
---bind /usr/lib64/libcxi.so.1.5.0:/host-slingshot/libcxi.so.1.5.0
 --bind /usr/lib64/libnl-3.so.200:/host-slingshot/libnl-3.so.200
 --bind /usr/lib64/libhwloc.so.15:/host-slingshot/libhwloc.so.15
---bind /usr/lib64/libhwloc.so.15.7.0:/host-slingshot/libhwloc.so.15.7.0
 --bind /usr/lib64/libpciaccess.so.0:/host-slingshot/libpciaccess.so.0
 --bind /usr/lib64/libxml2.so.2:/host-slingshot/libxml2.so.2
 --bind /usr/lib64/libatomic.so.1:/host-slingshot/libatomic.so.1
@@ -87,7 +91,7 @@ HOST=/lib64
 --bind /usr/lib64/liblzma.so.5:/host-slingshot/liblzma.so.5
 
 # 3) Cray libfabric + aws-ofi-rccl plugin
---bind /opt/cray/libfabric/1.22.0:/opt/cray/libfabric/1.22.0
+--bind /opt/cray/libfabric/2.3.1:/opt/cray/libfabric/2.3.1
 --bind ${PLUGIN_PATH}:${PLUGIN_PATH}
 ```
 
@@ -97,7 +101,7 @@ HOST=/lib64
 mv /lib/x86_64-linux-gnu/libfabric.so.1 /lib/x86_64-linux-gnu/libfabric.so.1.disabled
 
 # LD_LIBRARY_PATH: plugin + host libfabric + slingshot deps + Ubuntu paths
-export LD_LIBRARY_PATH=${PLUGIN_PATH}/lib:/opt/cray/libfabric/1.22.0/lib64:/host-slingshot:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
+export LD_LIBRARY_PATH=${PLUGIN_PATH}/lib:/opt/cray/libfabric/2.3.1/lib64:/host-slingshot:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}
 
 # LD_PRELOAD host libgcc_s
 export LD_PRELOAD=/lib/x86_64-linux-gnu/libgcc_s.so.1
@@ -117,7 +121,7 @@ This would eliminate the need for glibc injection entirely.
 # Plugin
 PLUGIN_PATH=/ccs/sw/crusher/amdsw/aws-ofi-nccl/aws-ofi-nccl
 export NCCL_NET_PLUGIN=${PLUGIN_PATH}/lib/librccl-net.so
-export LD_LIBRARY_PATH=${PLUGIN_PATH}/lib:/opt/cray/libfabric/1.22.0/lib64:${LD_LIBRARY_PATH}
+export LD_LIBRARY_PATH=${PLUGIN_PATH}/lib:/opt/cray/libfabric/2.3.1/lib64:${LD_LIBRARY_PATH}
 
 # Slingshot CXI tuning (required for stability)
 export FI_MR_CACHE_MONITOR=kdreg2
@@ -145,7 +149,7 @@ export GPU_MAX_HW_QUEUES=2
 | What | Path |
 |------|------|
 | aws-ofi-rccl plugin | `/ccs/sw/crusher/amdsw/aws-ofi-nccl/aws-ofi-nccl/lib/librccl-net.so` |
-| Cray libfabric 1.22.0 | `/opt/cray/libfabric/1.22.0/lib64/` |
+| Cray libfabric 2.3.1 | `/opt/cray/libfabric/2.3.1/lib64/` |
 | libcxi (CXI provider) | `/usr/lib64/libcxi.so.1` |
 | Host glibc 2.38 | `/lib64/libc.so.6`, `/lib64/ld-linux-x86-64.so.2` |
 | OmniHub container | `/autofs/nccs-svm1_sw/crusher/amdsw/omnihub/apptainer/` |
