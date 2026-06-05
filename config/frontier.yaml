@@ -22,12 +22,15 @@ cluster:
     - "/lib64/libdl.so.2:/lib/x86_64-linux-gnu/libdl.so.2"
     - "/lib64/librt.so.1:/lib/x86_64-linux-gnu/librt.so.1"
     - "/lib64/libgcc_s.so.1:/lib/x86_64-linux-gnu/libgcc_s.so.1"
-    # Slingshot host libraries -> /host-slingshot/
+    # Slingshot host libraries -> /host-slingshot/. Bind the major-SONAME
+    # symlinks only (e.g. libcxi.so.1, libhwloc.so.15): Apptainer dereferences
+    # the symlink source and places the real (minor-versioned) library content
+    # at the destination, so we do NOT pin the minor version. These SONAME names
+    # are stable across Cray PE minor bumps (libcxi 1.5.0->1.6.0, libhwloc
+    # 15.7.0->15.8.1), which previously broke container creation.
     - "/usr/lib64/libcxi.so.1:/host-slingshot/libcxi.so.1"
-    - "/usr/lib64/libcxi.so.1.5.0:/host-slingshot/libcxi.so.1.5.0"
     - "/usr/lib64/libnl-3.so.200:/host-slingshot/libnl-3.so.200"
     - "/usr/lib64/libhwloc.so.15:/host-slingshot/libhwloc.so.15"
-    - "/usr/lib64/libhwloc.so.15.7.0:/host-slingshot/libhwloc.so.15.7.0"
     - "/usr/lib64/libpciaccess.so.0:/host-slingshot/libpciaccess.so.0"
     - "/usr/lib64/libxml2.so.2:/host-slingshot/libxml2.so.2"
     - "/usr/lib64/libatomic.so.1:/host-slingshot/libatomic.so.1"
@@ -35,7 +38,7 @@ cluster:
     - "/usr/lib64/libz.so.1:/host-slingshot/libz.so.1"
     - "/usr/lib64/liblzma.so.5:/host-slingshot/liblzma.so.5"
     # Cray libfabric + aws-ofi-rccl plugin
-    - "/opt/cray/libfabric/1.22.0:/opt/cray/libfabric/1.22.0"
+    - "/opt/cray/libfabric/2.3.1:/opt/cray/libfabric/2.3.1"
     - "/ccs/sw/crusher/amdsw/aws-ofi-nccl/aws-ofi-nccl:/ccs/sw/crusher/amdsw/aws-ofi-nccl/aws-ofi-nccl"
   # Slingshot CXI tuning + RCCL network settings, exported before srun.
   # NCCL_NET and NCCL_NET_PLUGIN are listed in multinode-only-env because
@@ -63,7 +66,7 @@ cluster:
   # Extra LD_LIBRARY_PATH entries prepended inside the container
   container-ld-library-path:
     - "/ccs/sw/crusher/amdsw/aws-ofi-nccl/aws-ofi-nccl/lib"
-    - "/opt/cray/libfabric/1.22.0/lib64"
+    - "/opt/cray/libfabric/2.3.1/lib64"
     - "/host-slingshot"
     - "/lib/x86_64-linux-gnu"
     - "/usr/lib/x86_64-linux-gnu"
